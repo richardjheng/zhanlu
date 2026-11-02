@@ -310,6 +310,56 @@ try {
     Assert-Case ($result.Exit -eq 0) 'Install from extracted package'
     Assert-Ignored $repo 'alpha/AGENTS.md'
     Assert-Ignored $repo 'beta/update-zhanlu.ps1'
+
+    # Uninstall keeps the project layer and data protected, and leaves other installs alone.
+    $uninstallRepo = Join-Path $scratch 'uninstall-repo'
+    $gamma = Join-Path $uninstallRepo 'gamma'
+    $delta = Join-Path $uninstallRepo 'delta'
+    New-Item -ItemType Directory -Path $gamma, $delta -Force | Out-Null
+    Run-Git $uninstallRepo @('init', '--quiet')
+    Run-Git $uninstallRepo @('config', 'core.excludesFile', $emptyExclude)
+    [System.IO.File]::WriteAllText((Join-Path $gamma 'main.c'), 'int main(void) { return 0; }', $utf8)
+    foreach ($target in @($gamma, $delta)) {
+        $result = Invoke-Child $installer @('-TargetPath', $target)
+        Assert-Case ($result.Exit -eq 0) "Install $(Split-Path -Leaf $target) for uninstall"
+    }
+    $evidence = Join-Path $gamma '.agents/resources/evidence.txt'
+    [System.IO.File]::WriteAllText($evidence, 'private evidence', $utf8)
+    [System.IO.File]::WriteAllText((Join-Path $gamma '.vscode/settings.json'), '{"edited":true}', $utf8)
+    $uninstallExclude = Join-Path $uninstallRepo '.git/info/exclude'
+    $beforeUninstall = @(Snapshot-Files $gamma)
+    $excludeBeforeUninstall = [System.IO.File]::ReadAllText($uninstallExclude)
+    $result = Invoke-Child $installer @('-TargetPath', $gamma, '-Uninstall', '-WhatIf')
+    Assert-Case ($result.Exit -eq 0) 'Uninstall preview succeeds'
+    Assert-Case (-not (Compare-Object $beforeUninstall @(Snapshot-Files $gamma))) 'Uninstall preview writes no target files'
+    Assert-Case ([System.IO.File]::ReadAllText($uninstallExclude) -eq $excludeBeforeUninstall) 'Uninstall preview leaves exclusion file unchanged'
+    $activeBefore = @('project.md', 'context-index.md', 'TODO.md' | ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $gamma ".agents/$_")).Hash })
+    $result = Invoke-Child $installer @('-TargetPath', $gamma, '-Uninstall')
+    Assert-Case ($result.Exit -eq 0) 'Uninstall keeps project layer by default'
+    Assert-Case (-not (Test-Path -LiteralPath (Join-Path $gamma 'AGENTS.md'))) 'Uninstall removes module core'
+    Assert-Case (-not (Test-Path -LiteralPath (Join-Path $gamma '.claude'))) 'Uninstall removes Claude skill mounts'
+    Assert-Case (-not (Test-Path -LiteralPath (Join-Path $gamma '.agents/module.json'))) 'Uninstall removes installed manifest'
+    $activeAfter = @('project.md', 'context-index.md', 'TODO.md' | ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $gamma ".agents/$_")).Hash })
+    Assert-Case (-not (Compare-Object $activeBefore $activeAfter)) 'Uninstall preserves active project hashes'
+    Assert-Case (Test-Path -LiteralPath $evidence) 'Uninstall preserves resource data'
+    Assert-Case (Test-Path -LiteralPath (Join-Path $gamma '.vscode/settings.json')) 'Uninstall keeps edited editor settings'
+    Assert-Case (-not (Test-Path -LiteralPath (Join-Path $gamma 'gamma.code-workspace'))) 'Uninstall removes unmodified workspace file'
+    Assert-Case (Test-Path -LiteralPath (Join-Path $gamma 'main.c')) 'Uninstall preserves product source'
+    Assert-Ignored $uninstallRepo 'gamma/.agents/resources/evidence.txt'
+    Assert-Ignored $uninstallRepo 'gamma/.vscode/settings.json'
+    Assert-Ignored $uninstallRepo 'delta/AGENTS.md'
+    $excludeAfter = [System.IO.File]::ReadAllText($uninstallExclude)
+    Assert-Case (-not $excludeAfter.Contains('/gamma/AGENTS.md')) 'Uninstall drops patterns for removed files'
+    $result = Invoke-Child $installer @('-TargetPath', $delta, '-Uninstall', '-RemoveProjectLayer')
+    Assert-Case ($result.Exit -eq 0) 'Uninstall with project layer removal'
+    Assert-Case (-not (Test-Path -LiteralPath (Join-Path $delta '.agents'))) 'Full uninstall leaves no empty .agents'
+    Assert-Case (-not (Test-Path -LiteralPath (Join-Path $delta '.vscode'))) 'Full uninstall removes unmodified editor settings'
+    Assert-Case (-not ([System.IO.File]::ReadAllText($uninstallExclude)).Contains('[delta]')) 'Full uninstall removes its exclusion block'
+    Assert-Ignored $uninstallRepo 'gamma/.agents/resources/evidence.txt'
+    $result = Invoke-Child $installer @('-TargetPath', $gamma, '-Uninstall')
+    Assert-Case ($result.Exit -ne 0 -and $result.Output -match 'No installed module') 'Reject uninstall without installed manifest'
+    $result = Invoke-Child $installer @('-TargetPath', $delta, '-Uninstall', '-Update')
+    Assert-Case ($result.Exit -ne 0) 'Reject uninstall combined with update'
     Write-Output "Regression passed: $script:checks checks."
 } finally {
     $resolvedScratch = [System.IO.Path]::GetFullPath($scratch)

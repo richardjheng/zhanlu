@@ -24,10 +24,20 @@
 .PARAMETER RemoveStale
     Update mode only. Delete files that the previously installed manifest listed but the
     current manifest no longer contains. Without this switch such files are only reported.
+.PARAMETER Uninstall
+    Remove an installed module. Only files listed by the installed manifest are deleted;
+    the active project layer, its backups, history and the data mount points are kept, and
+    exclusion patterns stay in place for every path that still exists.
+.PARAMETER RemoveProjectLayer
+    Uninstall mode only. Also delete the three active project files and their
+    .agents/.backup-* copies. Data under .agents/resources and .agents/reference-projects
+    is never deleted.
 .EXAMPLE
     .\setup-zhanlu.ps1 -TargetPath D:\work\my-firmware
 .EXAMPLE
     .\setup-zhanlu.ps1 -TargetPath D:\work\my-firmware -Update -WhatIf
+.EXAMPLE
+    .\setup-zhanlu.ps1 -TargetPath D:\work\my-firmware -Uninstall -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -36,7 +46,11 @@ param(
 
     [switch]$Update,
 
-    [switch]$RemoveStale
+    [switch]$RemoveStale,
+
+    [switch]$Uninstall,
+
+    [switch]$RemoveProjectLayer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +61,12 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | Convert
 
 if ($RemoveStale -and -not $Update) {
     throw '-RemoveStale is only valid together with -Update.'
+}
+if ($Uninstall -and $Update) {
+    throw '-Uninstall cannot be combined with -Update.'
+}
+if ($RemoveProjectLayer -and -not $Uninstall) {
+    throw '-RemoveProjectLayer is only valid together with -Uninstall.'
 }
 
 if (-not (Test-Path -LiteralPath $TargetPath -PathType Container)) {
@@ -136,6 +156,159 @@ function Get-FileSha256([string]$Path) {
     } finally {
         $sha256.Dispose()
     }
+}
+
+if ($Uninstall) {
+    $targetManifestPath = Join-Path $targetRoot '.agents\module.json'
+    if (-not (Test-Path -LiteralPath $targetManifestPath -PathType Leaf)) {
+        throw "No installed module found at $targetRoot; nothing to uninstall."
+    }
+    $targetManifest = Get-Content -LiteralPath $targetManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($targetManifest.projectKind -eq 'kit-source') {
+        throw "Target is a kit source, not an installed project: $targetRoot"
+    }
+
+    # Ownership comes from the installed manifest, so files added by the user are never
+    # matched. Every path is validated before the first deletion.
+    $removeFiles = @(Get-ModuleInstallFiles $targetManifest | Where-Object { $activeFiles -notcontains $_ })
+    foreach ($relativePath in $removeFiles) {
+        [void](Resolve-ModulePath $targetRoot $relativePath)
+    }
+    $removeFiles = @($removeFiles | Where-Object { Test-Path -LiteralPath (Join-Path $targetRoot $_) -PathType Leaf })
+
+    # Editor settings are removed only while they still match the template they came from.
+    $keptGenerated = @()
+    foreach ($entry in $generateOnce) {
+        $destination = Resolve-ModulePath $targetRoot $entry.Destination
+        if (-not (Test-Path -LiteralPath $destination -PathType Leaf)) { continue }
+        $templatePath = Join-Path $targetRoot ($entry.Template.Replace('/', '\'))
+        if ((Get-FileSha256 $templatePath) -and (Get-FileSha256 $destination) -eq (Get-FileSha256 $templatePath)) {
+            $removeFiles += $entry.Destination
+        } else {
+            $keptGenerated += $entry.Destination
+        }
+    }
+
+    $backupDirectories = @()
+    if ($RemoveProjectLayer) {
+        foreach ($relativePath in $activeFiles) {
+            [void](Resolve-ModulePath $targetRoot $relativePath)
+            if (Test-Path -LiteralPath (Join-Path $targetRoot $relativePath) -PathType Leaf) {
+                $removeFiles += $relativePath
+            }
+        }
+        $agentsDirectory = Join-Path $targetRoot '.agents'
+        if (Test-Path -LiteralPath $agentsDirectory -PathType Container) {
+            $backupDirectories = @(Get-ChildItem -LiteralPath $agentsDirectory -Directory -Force -Filter '.backup-*' |
+                ForEach-Object { '.agents/' + $_.Name })
+        }
+        foreach ($relativePath in $backupDirectories) {
+            [void](Resolve-ModulePath $targetRoot $relativePath)
+        }
+    }
+
+    Write-Output "Uninstall plan for: $targetRoot"
+    Write-Output "  installed: $($targetManifest.name) $($targetManifest.version) ($($targetManifest.coreVersion))"
+    foreach ($relativePath in $removeFiles) { Write-Output "    [delete]    $relativePath" }
+    foreach ($relativePath in $backupDirectories) { Write-Output "    [delete]    $relativePath/" }
+    foreach ($relativePath in $keptGenerated) { Write-Output "    [keep]      $relativePath (differs from template)" }
+    if (-not $RemoveProjectLayer) {
+        foreach ($relativePath in $activeFiles) { Write-Output "    [keep]      $relativePath" }
+        Write-Output '    [keep]      .agents/.backup-*'
+    }
+    Write-Output '    [keep]      .agents/resources/ and .agents/reference-projects/ contents'
+
+    if (-not $PSCmdlet.ShouldProcess($targetRoot, "Uninstall $($targetManifest.name) $($targetManifest.version)")) {
+        return
+    }
+
+    foreach ($relativePath in $backupDirectories) {
+        Remove-Item -LiteralPath (Resolve-ModulePath $targetRoot $relativePath) -Recurse -Force
+    }
+    foreach ($relativePath in $removeFiles) {
+        $filePath = Resolve-ModulePath $targetRoot $relativePath
+        Remove-Item -LiteralPath $filePath -Force
+        # Prune directories the removed file left empty, stopping at the target root.
+        $directory = Split-Path -Parent $filePath
+        while ($directory -and $directory.StartsWith($targetRootWithSeparator, [System.StringComparison]::OrdinalIgnoreCase)) {
+            [void](Resolve-ModulePath $targetRoot $directory.Substring($targetRootWithSeparator.Length))
+            if (@(Get-ChildItem -LiteralPath $directory -Force).Count -gt 0) {
+                break
+            }
+            $parent = Split-Path -Parent $directory
+            Remove-Item -LiteralPath $directory -Force
+            $directory = $parent
+        }
+    }
+
+    # Keep each exclusion pattern while its path still exists, so retained project data and
+    # evidence stay out of version control. Other installations' blocks are left untouched.
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCommand) {
+        Push-Location -LiteralPath $targetRoot
+        try {
+            $previousErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $insideWorkTree = & $gitCommand.Source rev-parse --is-inside-work-tree 2>$null
+            } finally {
+                $ErrorActionPreference = $previousErrorAction
+            }
+            if ($LASTEXITCODE -eq 0 -and $insideWorkTree -eq 'true') {
+                $gitCommonDir = (& $gitCommand.Source rev-parse --git-common-dir).Trim()
+                if (-not [System.IO.Path]::IsPathRooted($gitCommonDir)) {
+                    $gitCommonDir = Join-Path $targetRoot $gitCommonDir
+                }
+                $pathPrefix = (& $gitCommand.Source rev-parse --show-prefix)
+                if ($null -eq $pathPrefix) { $pathPrefix = '' } else { $pathPrefix = $pathPrefix.Trim() }
+                $scopeLabel = if ($pathPrefix) { $pathPrefix.TrimEnd('/') } else { '.' }
+                $gitDir = (& $gitCommand.Source rev-parse --absolute-git-dir).Trim()
+                if ([System.IO.Path]::GetFullPath($gitDir) -ne [System.IO.Path]::GetFullPath($gitCommonDir)) {
+                    $scopeLabel = 'worktree:' + (Split-Path -Leaf $gitDir) + '/' + $scopeLabel
+                }
+                $excludeFile = Join-Path $gitCommonDir 'info\exclude'
+                if (Test-Path -LiteralPath $excludeFile -PathType Leaf) {
+                    $markerName = [string]$manifest.name
+                    $beginMarker = "# >>> $markerName [$scopeLabel] >>>"
+                    $endMarker = "# <<< $markerName [$scopeLabel] <<<"
+                    $scopedPattern = '(?ms)^' + [regex]::Escape($beginMarker) + '\r?\n.*?^' +
+                        [regex]::Escape($endMarker) + '(?:\r?\n|\z)'
+                    $existing = [System.IO.File]::ReadAllText($excludeFile)
+                    $ownedPrefix = '/' + (ConvertTo-GitIgnoreLiteralPath $pathPrefix)
+                    $remaining = @()
+                    foreach ($match in [regex]::Matches($existing, $scopedPattern)) {
+                        foreach ($line in @($match.Value -split '\r?\n' | Where-Object { $_.StartsWith('/') })) {
+                            $relative = $line
+                            if ($relative.StartsWith($ownedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                                $relative = $relative.Substring($ownedPrefix.Length)
+                            } else {
+                                $relative = $relative.Substring(1)
+                            }
+                            $relative = [regex]::Replace($relative, '\\(.)', '$1').TrimEnd('/')
+                            if ($relative -and (Test-Path -LiteralPath (Join-Path $targetRoot $relative))) {
+                                $remaining += $line
+                            }
+                        }
+                    }
+                    $updated = [regex]::Replace($existing, $scopedPattern, '')
+                    if ($remaining.Count -gt 0) {
+                        if ($updated.Length -gt 0 -and -not $updated.EndsWith("`n")) { $updated += "`n" }
+                        $updated += ((@($beginMarker) + ($remaining | Select-Object -Unique) + @($endMarker)) -join "`n") + "`n"
+                    }
+                    [System.IO.File]::WriteAllText($excludeFile, $updated, $utf8NoBom)
+                    Write-Output "Exclusion block updated: $excludeFile ($($remaining.Count) pattern(s) kept for remaining paths)"
+                }
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+
+    Write-Output "Uninstall complete: $targetRoot"
+    if (Test-Path -LiteralPath (Join-Path $targetRoot '.agents')) {
+        Write-Output '.agents/ was kept because it still holds project data; it stays excluded from version control.'
+    }
+    return
 }
 
 $staleFiles = @()

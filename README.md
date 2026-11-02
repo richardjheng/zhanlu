@@ -317,6 +317,32 @@ powershell -ExecutionPolicy Bypass -File .\clean-backups.ps1 -KeepLatest 1
 
 > 流程 A 裝完後，專案內會有**兩份**模組：根目錄那份是 AI 實際讀的，`zhanlu/` 那份只當升級來源，內容相同是正常的。改規則要回母版改，改根目錄那份會在下次 `-Update` 被蓋掉。
 
+## 解除安裝
+
+從 kit（clone 或解壓目錄）對目標專案執行，不能用目標專案裡那份安裝器：
+
+```powershell
+# 先看計畫，不刪除任何檔案
+powershell -ExecutionPolicy Bypass -File .\zhanlu\setup-zhanlu.ps1 -TargetPath . -Uninstall -WhatIf
+
+# 只移除模組，保留專案層與資料
+powershell -ExecutionPolicy Bypass -File .\zhanlu\setup-zhanlu.ps1 -TargetPath . -Uninstall
+
+# 裝錯專案時，連三份作用中文件與備份一起移除
+powershell -ExecutionPolicy Bypass -File .\zhanlu\setup-zhanlu.ps1 -TargetPath . -Uninstall -RemoveProjectLayer
+```
+
+| 項目 | `-Uninstall` | 加 `-RemoveProjectLayer` |
+|---|---|---|
+| 已安裝 manifest 列出的模組檔案 | 刪除 | 刪除 |
+| 與範本相同的編輯器設定 | 刪除 | 刪除 |
+| 改過的編輯器設定 | 保留 | 保留 |
+| 三份作用中文件、`.backup-*` | 保留 | 刪除 |
+| `.agents/resources/`、`.agents/reference-projects/` 的資料 | 保留 | 保留 |
+| `.git/info/exclude` | 只保留仍存在路徑的規則 | 同左；全部移除時整個區塊刪除 |
+
+刪除後變空的目錄會一併清掉；同一 repository 其他位置的安裝不受影響。`zhanlu/` clone 本身不會被刪除，需要時自行移除。
+
 ## 一台機器多個專案
 
 每個 repository 各裝一份，不要多個專案共用同一份 `.agents/`。共用檔案（核心規則與 skills）在各專案內容相同，差異只在專案層三份文件，這樣每個專案的事實、索引與工作進度才不會互相污染。

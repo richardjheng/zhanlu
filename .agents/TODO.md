@@ -38,7 +38,15 @@
 | KIT-030 | 功能開發 | 影響分析 | 機種 × 晶片 × 設定 × 建置涵蓋矩陣範本 | KIT-028 | 待辦 | 未知組合明列；回放第 1、5 題於首輪指出跨平台與衍生設定影響 |
 | KIT-031 | 功能開發 | 證據 | 證據綁定快照（base revision、diff hash、設定、工具版本）與失效判定 | KIT-028 | 待辦 | 快照變更後舊結論標示失效；隔離 repo 測試通過 |
 | KIT-032 | 功能開發 | 專案導覽 | context-index 專案導覽資料（入口、流程、模組） | KIT-029、KIT-030 | 待辦 | 生成資料不升格為權威；不新增專案技能目錄 |
-| KIT-033 | 功能開發 | 安裝工具 | `uninstall-zhanlu.ps1` 解除安裝 | KIT-027 | 待辦 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+| KIT-034 | 功能開發 | 影響分析 | 補強最小變更原則：禁止新增需求外介面或行為、禁止為一致性改型別、明訂移除功能的範圍 | KIT-028 | 進行中 | 回放 6 題範圍擴大題數低於 KIT-028 的 3 題，且無新增誤判無影響 |
+| KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+
+## 已完成項目：KIT-033
+- 決策：改為在 `setup-zhanlu.ps1` 新增 `-Uninstall` 與 `-RemoveProjectLayer`，不另增第六支 `.ps1`；沿用 manifest、路徑安全檢查與 exclude 範圍邏輯，不修改 `AGENTS.md` 的唯讀清單。
+- 行為：只刪除已安裝 manifest 列出的檔案；與範本相同的編輯器設定才刪除；預設保留三份作用中文件、`.backup-*` 與資料掛載點內容；exclude 只保留仍存在路徑的規則，其他安裝位置的區塊不動；刪除後變空的目錄會一併清掉；拒絕在 kit source、未安裝目錄，以及與 `-Update` 併用時執行。
+- 已完成靜態驗證：parser errors 0、腳本維持 ASCII；`pack.ps1`（內含 `-PackageSource` 驗證）產出 `zhanlu-v4.9.0.7z`，44,661 bytes、43 個檔案；`git diff --check` 通過。
+- 已完成動態驗證（腳本）：`tests/regression.ps1` 92 項通過，新增 25 項，涵蓋 WhatIf 零寫入、保留作用中文件雜湊與資料、資料仍受忽略、改過的設定保留、其他安裝不受影響、完整移除後不留 `.agents` 與 exclude 區塊，以及拒絕路徑。
+- 仍待驗證：未在實際專案（例如 ite-tools）重跑，以隔離 fixture 代替。
 
 ## 已完成項目：KIT-028
 - 範圍：新增可攜範本 `.agents/templates/impact-analysis.md`，6 個任務技能各加一行引用，`module.json` 白名單加入該範本，版本升為 v4.9.0；不修改 `AGENTS.md`。

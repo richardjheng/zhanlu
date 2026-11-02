@@ -97,6 +97,8 @@ powershell -ExecutionPolicy Bypass -File .\setup-zhanlu.ps1 `
 
 若曾在目標專案手改過 `AGENTS.md` 或任一 skill，升級會覆蓋這些修改。共用規則的修改應該回到母版，不要留在單一專案。
 
+解除安裝使用 `setup-zhanlu.ps1 -Uninstall`，只刪除已安裝 manifest 列出的檔案；預設保留三份作用中文件、備份與資料掛載點內容，`.git/info/exclude` 只保留仍存在路徑的規則。加上 `-RemoveProjectLayer` 才刪除作用中文件與備份。
+
 ## 資料邊界與版控保護
 
 安裝到目標專案後，整個模組都不進該專案的版控。忽略規則寫入目標 repository 的 `.git/info/exclude`：
