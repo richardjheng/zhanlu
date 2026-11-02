@@ -39,7 +39,15 @@
 | KIT-031 | 功能開發 | 證據 | 證據綁定快照（base revision、diff hash、設定、工具版本）與失效判定 | KIT-028 | 完成 | 快照欄位與失效規則寫入範本、量測證據格式與文件；雜湊方法於隔離 repo 驗證；母版驗證、regression 與封裝通過 |
 | KIT-032 | 功能開發 | 專案導覽 | context-index 專案導覽資料（入口、流程、模組） | KIT-029、KIT-030 | 完成 | 生成資料不升格為權威；不新增專案技能目錄 |
 | KIT-034 | 功能開發 | 影響分析 | 補強最小變更原則，並加入「要改」依據必填與交付前自我檢查 | KIT-028 | 完成 | 範本規則與自我檢查一致；母版驗證、regression 與封裝通過；回放效果列為後續觀察，不作為本項門檻 |
+| KIT-035 | 文件／封裝 | 發布 | 將已驗證的 v4.9.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-032 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+
+## 已完成項目：KIT-035
+- 範圍：推送 `main` 與 annotated tag `v4.9.0` 至 remote `richardjheng`（`richardjheng/zhanlu`），建立 Release 並上傳 `dist/zhanlu-v4.9.0.7z`；不改程式碼。`origin`（ITE-Richard/zhanlu）未推送。
+- 方法：`gh` 以 `richardjheng` 帳號登入，權限 ADMIN；push 只在該次指令以 `-c credential.helper=!gh auth git-credential` 指定憑證，不修改全域 Git 設定。
+- 已完成：`6091fd6` 推送至 `richardjheng/main`；tag `v4.9.0`（物件 `c266136`）指向同一 commit；Release「湛盧 v4.9.0」為非草稿、非預發布，並標為 latest，asset 狀態為 uploaded。
+- 下載回驗：47,558 bytes；SHA-256 `F1041FAA3D51916CE97DB691EFE876FC155F5AE5598A668FDC77A6F22C4E7B0B`，與本地一致；`7z t` 回報 Everything is Ok，共 43 個檔案。
+- 仍待驗證：既有專案的 `-Update` 實測、三工具 GUI 載入；`richardjheng` 尚無 v4.8.4 以前的 tag 與 Release。
 
 ## 已完成項目：KIT-032
 - 範圍：
