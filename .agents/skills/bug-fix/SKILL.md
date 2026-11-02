@@ -23,7 +23,8 @@ description: 嵌入式韌體 Bug 修正方法。適用異常重現、根因分�
 - 證據置於 `../../resources/evidence/<WORK-ITEM-ID>/`，並在 `../../context-index.md` 登記。
 - LA 匯出以協定解碼後的 CSV 為首選，一列一筆 transaction，可直接推理；raw sample 匯出動輒數百萬列，無法解析。
 - 只匯出出問題的時間窗，例如 reset 後 0 至 50 ms，不整份匯出。
-- 每組量測必須附 `measurement-note.md`，記載 channel 對應到哪個 net、取樣率、觸發條件、板號與當時的韌體版本或 commit。
+- 每組量測必須附 `measurement-note.md`，記載 channel 對應到哪個 net、取樣率、觸發條件、板號，以及韌體快照：base commit、未提交修改的 diff SHA-256（無則寫無）、建置的 `CFG-xx` 與燒錄 binary 的 SHA-256。
+- 快照與目前修改不符的量測，只能作為歷史參考，不可當作本次修改的驗證結果。
 - 缺少 channel 對應表時只能報告訊號未知，不得自行推測哪個 channel 是哪個 pin。
 - 取樣率不足會產生假的 glitch；未記載取樣率時，相關結論一律標示為受量測條件限制。
 - 波形截圖只能佐證有無訊號與大致形狀，不可作為精確時序或脈寬的依據。

@@ -36,10 +36,20 @@
 | KIT-028 | 功能開發 | 影響分析 | 影響分析共同格式，含最小變更原則（要改／刻意保留休眠程式碼／不改） | KIT-027 | 完成 | 範本與七項任務技能引用同一格式；區分候選／已確認及未找到／未解析／未涵蓋；回放 6 題範圍擴大題數低於基準 4 題且無新增誤判無影響 |
 | KIT-029 | 功能開發 | 影響分析 | 韌體關係分類寫入任務與領域技能 | KIT-028 | 完成 | 範本關係類型與五個領域技能「間接關係追查」名稱一致；母版驗證、regression 與封裝通過 |
 | KIT-030 | 功能開發 | 影響分析 | 機種 × 晶片 × 設定 × 建置涵蓋矩陣範本 | KIT-028 | 完成 | context-index 範本新增矩陣，影響分析以 `CFG-xx` 判定涵蓋，矩陣外組合列為未涵蓋；新安裝產出矩陣；母版驗證、regression 與封裝通過 |
-| KIT-031 | 功能開發 | 證據 | 證據綁定快照（base revision、diff hash、設定、工具版本）與失效判定 | KIT-028 | 待辦 | 快照變更後舊結論標示失效；隔離 repo 測試通過 |
+| KIT-031 | 功能開發 | 證據 | 證據綁定快照（base revision、diff hash、設定、工具版本）與失效判定 | KIT-028 | 完成 | 快照欄位與失效規則寫入範本、量測證據格式與文件；雜湊方法於隔離 repo 驗證；母版驗證、regression 與封裝通過 |
 | KIT-032 | 功能開發 | 專案導覽 | context-index 專案導覽資料（入口、流程、模組） | KIT-029、KIT-030 | 待辦 | 生成資料不升格為權威；不新增專案技能目錄 |
 | KIT-034 | 功能開發 | 影響分析 | 補強最小變更原則，並加入「要改」依據必填與交付前自我檢查 | KIT-028 | 完成 | 範本規則與自我檢查一致；母版驗證、regression 與封裝通過；回放效果列為後續觀察，不作為本項門檻 |
 | KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+
+## 已完成項目：KIT-031
+- 範圍：
+  - `templates/impact-analysis.md`：「分析基準」改為必填快照（base commit、未提交修改的 diff SHA-256、untracked 檔名、分析時間），並加入失效規則；第 7 節自我檢查新增「快照一致」。
+  - `bug-fix`、`hardware-bringup` 的 `measurement-note.md`：增列 diff SHA-256、`CFG-xx` 與燒錄 binary 的 SHA-256；快照不符的量測只能作為歷史參考。
+  - `templates/context-index.md` 與 `README.md` 的證據說明同步修改。
+- 決策：不新增腳本，以 `git diff HEAD --binary --output=<檔案>` 加上 SHA-256 作為通用做法；以 `--output` 寫檔，避免 shell 重導向改變內容。
+- 已完成動態驗證（隔離 repo）：同一狀態的 hash 相同；內容改變後 hash 改變；乾淨工作樹的輸出為 0 bytes。測試中發現 `cmd /c` 的重導向會吃掉引號而沒有寫入檔案，另外 PowerShell 函式 `H` 被內建別名 `h`（Get-History）遮蔽；兩者都是測試寫法的問題，範本因此改為推薦 `--output`。
+- 已完成靜態驗證：`tests/regression.ps1` 92 項通過；`pack.ps1`（內含 `-PackageSource` 驗證）產出 `zhanlu-v4.9.0.7z`，47,009 bytes、43 個檔案；`git diff --check` 通過。
+- 一併修正：目標專案 replay 分支已依使用者要求刪除，規劃段的證據位置同步更新。
 
 ## 已完成項目：KIT-030
 - 範圍：
@@ -84,7 +94,7 @@
 - 來源：與 Codex 兩輪唯讀討論，以及 2026-11-02 在使用者指定的 IT51526 EC 專案做的回放盲測。只借鏡 GitNexus 的概念；它採 PolyForm Noncommercial 授權，不複製其程式碼或技能文字，zhanlu 也不依賴該工具。
 - 服務範圍：README 列出的七種工作，以及 EC、USB PD、Lighting、Keyboard 與 ITE 移植。
 - 基準結果（現有方法，由 Codex 盲測、Claude 評分，共 6 題）：命中 26、部分命中 5、漏掉 1；誤判「無影響」0 題；修改範圍超出實際修正 4 題（eUSB2、EPR、RSOC、GPI7）。主要缺口是最小變更原則：休眠程式碼、unused 屬性、RAM 位址、layout 保留。
-- 證據位置：目標專案的本地分支 `zhanlu-replay/case1-gpi7`～`case6-lightpipe`，內容在 `_zhanlu_replay/`；未推送。第 1、4、6 題的題目中文在傳送時亂碼，Codex 由英文關鍵字推出題意；第 2、3、5 題已用 UTF-8 重跑。
+- 證據位置：原存於目標專案的本地分支 `zhanlu-replay/case1-gpi7`～`case6-lightpipe`，從未推送；2026-11-02 依使用者要求，連同 worktree 一併刪除。題目、報告與評分只剩 session scratchpad 的暫存副本，不保證保留。第 1、4、6 題的題目中文在傳送時亂碼，Codex 由英文關鍵字推出題意；第 2、3、5 題已用 UTF-8 重跑。
 - 驗收方式：合成案例為必要條件；有已完成的真實案例時，以回放結果為加分證據。Keyboard 領域目前沒有案例，標為未涵蓋。
 - 已有共識、不納入：固定使用者 gate、`project.md` 持久修改開關、硬體 MCP、zhanlu 自有 MCP server。
 

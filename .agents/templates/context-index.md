@@ -60,7 +60,7 @@ SPEC 為整份 PDF 時，先讀目錄頁建立章節與頁碼對照寫在「適�
 
 LA log 以協定解碼後的 CSV 為首選，只匯出出問題的時間窗；raw sample 匯出動輒數百萬列，
 無法解析。`measurement-note.md` 必須記載 channel 對應到哪個 net、取樣率、觸發條件與
-當時的韌體版本，缺少對應表時 AI 只能報告 channel 未知，無法連結到實際訊號。
+韌體快照（base commit、diff SHA-256、`CFG-xx`、binary SHA-256），缺少對應表時 AI 只能報告 channel 未知，無法連結到實際訊號。
 
 ## 資料衝突與限制
 - 待確認。

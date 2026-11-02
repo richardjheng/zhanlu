@@ -157,7 +157,7 @@ Get-Content .git\info\exclude | Select-String "zhanlu"
 
 LA log 要用**協定解碼後的 CSV**，一列一筆 transaction；raw sample 匯出動輒數百萬列，AI 讀不完。
 只匯出出問題的那段時間窗，不要整份匯出。`measurement-note.md` 必須寫明 channel 對應到哪個 net、
-取樣率、觸發條件與當時的韌體版本——CSV 裡只有 `Channel 0/1/2`，沒有對照表 AI 無法把訊號連到實際 pin，
+取樣率、觸發條件與韌體快照（base commit、未提交修改的 diff SHA-256、`CFG-xx`、binary SHA-256）——CSV 裡只有 `Channel 0/1/2`，沒有對照表 AI 無法把訊號連到實際 pin，
 取樣率不足造成的假 glitch 也無從判斷。波形截圖只能佐證有無訊號，不能當精確時序依據。
 
 ### 步驟 3：`.agents/TODO.md` — 工作目標
