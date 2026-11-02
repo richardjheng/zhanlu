@@ -70,6 +70,13 @@ legacy → Zephyr 時，逐一判定原始流程應轉為哪種執行體：
 - **Power limit / PECI policy**：PL1/PL2/PL4 計算、寫入回讀校驗、AC/DC 與 adapter 瓦數動態切換。
 - **Type-C PD**：controller 型號與 I2C 通道、PDO 資料、interrupt pin、是否阻塞開機序列。
 
+## 間接關係追查
+關係類型定義見 `../../templates/impact-analysis.md`；ITE EC 常見的間接路徑：
+- **板級 GPIO 表**：以巨集組成的 GPIO 初始化表決定 INPUT／OUTPUT／ALT、電壓與極性；只有特定模式才寫入 GPCR，ALT 設定可能被其他模組（UART、ADC、SMBus）在執行期覆寫。
+- **平台標頭**：多平台共用程式時，同名訊號在不同平台標頭指向不同腳位；改一個平台後需比對其他平台的同名定義。
+- **IRQ 與 service table**：INTC 中斷經 vector table 進入 hook，timer 中斷只排程；追到實際執行的 main service。
+- **固定位址**：EC RAM、H2RAM 與診斷欄位以固定位址巨集定義，外部工具可能依賴；移植或移除功能時保留位址。
+
 ## 常見陷阱
 - 跨世代腳位消失：舊專案有效的 GPIO 在新晶片可能是電源腳，直接沿用會在開機時拉低造成電壓跌落。
 - PLL 頻率不同卻沿用計時常數，造成 delay 與 timeout 全數偏移。

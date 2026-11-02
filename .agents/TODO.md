@@ -34,12 +34,18 @@
 | KIT-026 | 重構 | 模組邊界 | 移除 zhanlu 對 Agora 的全部耦合，模組視 Agora 為不存在 | KIT-025 | 完成 | 核心、專案層、索引、文件、驗證與測試不再提及 Agora；套件零 Agora 字樣；regression 與封裝通過；中文 commit，不 push |
 | KIT-027 | 文件／封裝 | 發布 | 將已驗證的 v4.8.4 推送並發布 GitHub Release | KIT-026 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-028 | 功能開發 | 影響分析 | 影響分析共同格式，含最小變更原則（要改／刻意保留休眠程式碼／不改） | KIT-027 | 完成 | 範本與七項任務技能引用同一格式；區分候選／已確認及未找到／未解析／未涵蓋；回放 6 題範圍擴大題數低於基準 4 題且無新增誤判無影響 |
-| KIT-029 | 功能開發 | 影響分析 | 韌體關係分類寫入任務與領域技能 | KIT-028 | 待辦 | 直接呼叫、table dispatch、共享資料、協定契約、ISR→main、初始化順序六類於技能一致；回放第 2、6 題分類正確 |
+| KIT-029 | 功能開發 | 影響分析 | 韌體關係分類寫入任務與領域技能 | KIT-028 | 完成 | 範本關係類型與五個領域技能「間接關係追查」名稱一致；母版驗證、regression 與封裝通過 |
 | KIT-030 | 功能開發 | 影響分析 | 機種 × 晶片 × 設定 × 建置涵蓋矩陣範本 | KIT-028 | 待辦 | 未知組合明列；回放第 1、5 題於首輪指出跨平台與衍生設定影響 |
 | KIT-031 | 功能開發 | 證據 | 證據綁定快照（base revision、diff hash、設定、工具版本）與失效判定 | KIT-028 | 待辦 | 快照變更後舊結論標示失效；隔離 repo 測試通過 |
 | KIT-032 | 功能開發 | 專案導覽 | context-index 專案導覽資料（入口、流程、模組） | KIT-029、KIT-030 | 待辦 | 生成資料不升格為權威；不新增專案技能目錄 |
 | KIT-034 | 功能開發 | 影響分析 | 補強最小變更原則，並加入「要改」依據必填與交付前自我檢查 | KIT-028 | 完成 | 範本規則與自我檢查一致；母版驗證、regression 與封裝通過；回放效果列為後續觀察，不作為本項門檻 |
 | KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+
+## 已完成項目：KIT-029
+- 範圍：在 `ec-controller`、`pd-controller`、`lighting-controller`、`keyboard-controller`、`ite-ec-porting` 各新增「間接關係追查」段落，列出該領域常見的間接路徑與追查方式，並引用範本的類型定義；範本的關係類型新增「事件或 hook」。任務技能已在 KIT-028 引用範本，本項不重複修改。
+- 內容來源：KIT-028 回放中實際出現的路徑，包括 power sequence 步驟表、timer ISR→main service、EC RAM 位址別名、平台標頭與 GPIO 表、charger→PD 事件、port→晶片映射、LightPipe 多方寫入與 ISR／main 雙入口。只寫成通用規則，不含專案名稱或路徑。Keyboard 段落沒有回放案例，依領域知識撰寫。
+- 決策：依使用者指示以修改 zhanlu 為重點，完成條件由「回放第 2、6 題」改為靜態一致性與母版驗證。
+- 已完成靜態驗證：5 個領域技能都引用範本；`tests/regression.ps1` 92 項通過；`pack.ps1`（內含 `-PackageSource` 驗證）產出 `zhanlu-v4.9.0.7z`，46,200 bytes、43 個檔案；`git diff --check` 通過。
 
 ## 已完成項目：KIT-034
 - 範圍：只修改 `.agents/templates/impact-analysis.md`。

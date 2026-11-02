@@ -16,6 +16,13 @@ description: Keyboard Controller 韌體領域知識。適用 matrix scan、debou
 - USB HID／PS2／ACPI event／vendor command 的 protocol 與 reset recovery。
 - S3／S5／deep sleep 掃描策略、wake key、功耗與恢復後首鍵行為。
 
+## 間接關係追查
+關係類型定義見 `../../templates/impact-analysis.md`；Keyboard 常見的間接路徑：
+- **table dispatch**：matrix table、SKU／地區 table、Fn layer 與 hotkey 表以索引查表；修改一個鍵需追所有表與切換條件。
+- **ISR→main**：KSI interrupt／wake 只觸發掃描排程，實際掃描、debounce 與 report 在 main 或 thread；確認 sleep 狀態下的路徑。
+- **協定契約**：scan code、HID usage、ACPI Q-event 與 vendor command 編號由 host 端解讀，與 BIOS／驅動共用。
+- **條件編譯**：KSO 擴充、SKU 與板級設定決定實際掃描腳位；各 SKU 需各自展開確認。
+
 ## 驗證
 - 使用 matrix 測試、長按／多鍵／快速輸入、protocol trace、sleep wake 與不同 SKU 回歸。
 - 修改 scan timing 時同步驗證 CPU loading、功耗、debounce 與遺漏率。
