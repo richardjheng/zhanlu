@@ -143,6 +143,8 @@ Get-Content .git\info\exclude | Select-String "zhanlu"
 - **同一件事有兩份來源時要標權威性**。例如 vendor SDK 與客戶 SPEC 對 timing 說法不同，就分成兩列並在〈資料衝突與限制〉記下衝突；AI 會標示矛盾，而不是挑一個方便的。
 - **登記後才算數**。檔案放進 `.agents/resources/` 卻沒登記在索引，AI 不會主動去翻。
 
+**建置與設定矩陣**：同一份原始碼建出多個平台、機種或 SKU 時，在〈建置與設定矩陣〉每個組合各列一筆 `CFG-xx`，寫明建置入口、設定來源與關鍵開關。AI 做影響分析時以這張表判定改動涵蓋哪些組合，沒列的組合一律回報為「未涵蓋」，避免只改一個平台而漏掉另一個。v4.9.0 以前安裝的專案，升級不會改動作用中的 `context-index.md`；請從 `.agents/templates/context-index.md` 複製這一節自行加入。
+
 量測證據建議依 work item 分目錄：
 
 ```text
