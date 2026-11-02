@@ -33,6 +33,28 @@
 | KIT-025 | Bug fix | 共用核心 | Agora 導引改為三工具通用，不再要求所有工具以 codex 身分發言 | KIT-024 | 完成 | 核心與專案層不綁單一發言身分、verify 拒絕單一身分、regression 與封裝通過；中文 commit，不 push |
 | KIT-026 | 重構 | 模組邊界 | 移除 zhanlu 對 Agora 的全部耦合，模組視 Agora 為不存在 | KIT-025 | 完成 | 核心、專案層、索引、文件、驗證與測試不再提及 Agora；套件零 Agora 字樣；regression 與封裝通過；中文 commit，不 push |
 | KIT-027 | 文件／封裝 | 發布 | 將已驗證的 v4.8.4 推送並發布 GitHub Release | KIT-026 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
+| KIT-028 | 功能開發 | 影響分析 | 影響分析共同格式，含最小變更原則（要改／刻意保留休眠程式碼／不改） | KIT-027 | 完成 | 範本與七項任務技能引用同一格式；區分候選／已確認及未找到／未解析／未涵蓋；回放 6 題範圍擴大題數低於基準 4 題且無新增誤判無影響 |
+| KIT-029 | 功能開發 | 影響分析 | 韌體關係分類寫入任務與領域技能 | KIT-028 | 待辦 | 直接呼叫、table dispatch、共享資料、協定契約、ISR→main、初始化順序六類於技能一致；回放第 2、6 題分類正確 |
+| KIT-030 | 功能開發 | 影響分析 | 機種 × 晶片 × 設定 × 建置涵蓋矩陣範本 | KIT-028 | 待辦 | 未知組合明列；回放第 1、5 題於首輪指出跨平台與衍生設定影響 |
+| KIT-031 | 功能開發 | 證據 | 證據綁定快照（base revision、diff hash、設定、工具版本）與失效判定 | KIT-028 | 待辦 | 快照變更後舊結論標示失效；隔離 repo 測試通過 |
+| KIT-032 | 功能開發 | 專案導覽 | context-index 專案導覽資料（入口、流程、模組） | KIT-029、KIT-030 | 待辦 | 生成資料不升格為權威；不新增專案技能目錄 |
+| KIT-033 | 功能開發 | 安裝工具 | `uninstall-zhanlu.ps1` 解除安裝 | KIT-027 | 待辦 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+
+## 已完成項目：KIT-028
+- 範圍：新增可攜範本 `.agents/templates/impact-analysis.md`，6 個任務技能各加一行引用，`module.json` 白名單加入該範本，版本升為 v4.9.0；不修改 `AGENTS.md`。
+- 已完成靜態驗證：在 `AGENTS.md` 改用 HEAD 版本的隔離 clone 中，`verify-zhanlu.ps1 -PackageSource` 通過（43 個檔案、11 個技能）；`tests/regression.ps1` 67 項通過；`pack.ps1` 產出 `zhanlu-v4.9.0.7z`，43,150 bytes、43 個檔案；`git diff --check` 通過。
+- 回放對照（6 題題目與基準相同，改用 UTF-8，在乾淨的 detached worktree 執行，6 題都讀取了新範本）：修改範圍超出實際修正從 4 題降為 3 題，未新增誤判「無影響」。第 2 題改善為保留 SMBus 初始化與固定 RAM；第 3 題部分改善，已保留 RAM、enum、helper，並指出 unused warning；第 1、4 題仍有超出範圍的建議。
+- 仍待改善：範本未明文禁止「新增需求以外的介面或行為」；第 4 題無視「不改型別」。建議另開 work item 補強，並以同一批回放案例驗證。
+- 對照組報告：session scratchpad `replay2/out/`，未存入目標專案分支。
+- 工作目錄另有 `agora install` 寫入 `AGENTS.md` 的區塊，含本機路徑，會使工作目錄的 `-PackageSource` 失敗；不屬於本項，未 stage，待使用者決定處理方式。
+
+## 規劃：KIT-028～KIT-033（GitNexus 概念借鏡）
+- 來源：與 Codex 兩輪唯讀討論，以及 2026-11-02 在使用者指定的 IT51526 EC 專案做的回放盲測。只借鏡 GitNexus 的概念；它採 PolyForm Noncommercial 授權，不複製其程式碼或技能文字，zhanlu 也不依賴該工具。
+- 服務範圍：README 列出的七種工作，以及 EC、USB PD、Lighting、Keyboard 與 ITE 移植。
+- 基準結果（現有方法，由 Codex 盲測、Claude 評分，共 6 題）：命中 26、部分命中 5、漏掉 1；誤判「無影響」0 題；修改範圍超出實際修正 4 題（eUSB2、EPR、RSOC、GPI7）。主要缺口是最小變更原則：休眠程式碼、unused 屬性、RAM 位址、layout 保留。
+- 證據位置：目標專案的本地分支 `zhanlu-replay/case1-gpi7`～`case6-lightpipe`，內容在 `_zhanlu_replay/`；未推送。第 1、4、6 題的題目中文在傳送時亂碼，Codex 由英文關鍵字推出題意；第 2、3、5 題已用 UTF-8 重跑。
+- 驗收方式：合成案例為必要條件；有已完成的真實案例時，以回放結果為加分證據。Keyboard 領域目前沒有案例，標為未涵蓋。
+- 已有共識、不納入：固定使用者 gate、`project.md` 持久修改開關、硬體 MCP、zhanlu 自有 MCP server。
 
 ## 已完成項目：KIT-027
 - 問題／需求：使用者要求 commit、push 並發布 release。

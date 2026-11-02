@@ -16,6 +16,7 @@ description: 整合 upstream、vendor SDK、patch、branch 或另一 repository 
 3. 將衝突分類為機械衝突、架構差異、產品差異或行為衝突，再選擇保留、調整或拒絕。
 4. 保持 patch 可追溯；必要時記錄來源 commit 與未採用部分的理由。
 5. 先驗證局部介面，再執行整體 build 與受影響回歸。
+6. 整合或移除功能的影響與變更範圍依 `../../templates/impact-analysis.md` 記錄；失去呼叫者的程式碼與固定位址預設保留但停用。
 
 ## 停止條件
 - 無法確認來源版本、授權、目標介面契約或衝突語意時，不自行選邊。

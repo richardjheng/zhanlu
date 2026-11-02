@@ -1,8 +1,8 @@
 {
   "name": "zhanlu",
-  "version": "4.8.4",
+  "version": "4.9.0",
   "coreVersion": "ZHANLU-CORE-v4",
-  "archiveName": "zhanlu-v4.8.4.7z",
+  "archiveName": "zhanlu-v4.9.0.7z",
   "legacyMarkerNames": [
     "embedded-firmware-ai-collaboration-kit"
   ],
@@ -113,6 +113,7 @@
     ".agents/templates/project.md",
     ".agents/templates/context-index.md",
     ".agents/templates/TODO.md",
+    ".agents/templates/impact-analysis.md",
     ".agents/templates/vscode-settings.json",
     ".agents/templates/workspace.code-workspace",
     ".agents/rules/project-context.md",

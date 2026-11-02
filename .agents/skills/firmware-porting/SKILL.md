@@ -20,6 +20,7 @@ description: 在不同晶片、板級、框架或產品間移植嵌入式韌體�
 2. 一次移植一個可驗證功能，不直接平移 delay、ISR、全域旗標或 register 常數。
 3. 對硬體相關值回到權威 SPEC／schematic；無證據時停止並列出缺口。
 4. 靜態比較來源與目標路徑，再以 build、log、測試或波形驗證。
+5. 每個移植項目的影響、各目標平台涵蓋與未解析項目依 `../../templates/impact-analysis.md` 記錄。
 
 ## 專門技能
 - ITE EC 跨晶片或 legacy／Zephyr 移植，額外讀取 `../ite-ec-porting/SKILL.md`。
