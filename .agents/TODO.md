@@ -47,6 +47,14 @@
 | KIT-039 | 文件／封裝 | 發布 | 將已驗證的 v4.11.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-038 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-040 | 功能開發／Bug fix | 更新工具 | `update-zhanlu.ps1` 改為以 GitHub 正式 Release 更新，並修正在目標專案根目錄執行會對韌體 repo `git pull` | KIT-039 | 完成 | 不執行 Git 更新命令；digest、asset 名稱、版本與路徑檢查；離線 regression 通過；三方共識 |
 | KIT-041 | 功能開發 | 更新工具 | 無 7-Zip 環境採方案 A：明確停止訊息、安裝指引與 `-Local` 替代路線 | KIT-040 | 完成 | 訊息含安裝與替代路線；停止時未下載、未建暫存、專案零修改；`-WhatIf`／`-Local` 無 7z 可用；regression 通過 |
+| KIT-042 | 文件／封裝 | 發布 | 將已驗證的 v4.12.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-041 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256、API digest 與 7z 完整性均通過 |
+
+## 已完成項目：KIT-042
+- 範圍：依使用者指示放棄工作區 `AGENTS.md` 的 Agora 寫入區塊（非本專案修改，Agora 端修正中）；版本升為 4.12.0（`module.json`、`project.md`、兩份 README）；推送 `main`（含 KIT-040 `bdc3e6b`、KIT-041 `ad6afea`）與 annotated tag `v4.12.0` 至 `richardjheng`，建立 Release 並上傳 `dist/zhanlu-v4.12.0.7z`。Release 說明含 v4.11.0 以前專案的首次遷移步驟。
+- 發布前驗證：`verify-zhanlu.ps1 -PackageSource` 通過（4.12.0，portableFiles 44）；regression 191 項通過；`git diff --check` 通過；`7z t` OK。
+- 已完成：tag `v4.12.0` 指向 commit `46c4be2`；Release「湛盧 v4.12.0」非草稿、非預發布，API `releases/latest` 為 v4.12.0。
+- 下載回驗：54,389 bytes；SHA-256 `708EC2388114839FFC456E893F04BDF0C540756579635BF65D0012627B2039E9`，與本地及 API asset `digest` 一致；`7z t` Everything is Ok，44 個檔案。
+- 仍待驗證：以新版 `update-zhanlu.ps1` 對真實已安裝專案從 Release 升級（含舊版首次遷移）；無 7-Zip 主機。
 
 ## 已完成項目：KIT-041
 - 範圍：`update-zhanlu.ps1` 找不到 7z.exe 時的錯誤訊息改為說明未下載、未建暫存、未修改專案，並提供 `winget install --id 7zip.7zip -e`、官方下載頁與 `-Local` 替代路線；兩份 README 寫明從 Release 更新需要 7-Zip，`-WhatIf`、`-Local` 與 `setup-zhanlu.ps1` 不需要；regression 新增 14 項無 7-Zip 測試。Release 維持只發 `.7z`。
