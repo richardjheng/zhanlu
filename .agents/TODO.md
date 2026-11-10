@@ -44,6 +44,14 @@
 | KIT-036 | 功能開發 | 模式契約 | MCU 韌體常見模式契約參考，供任務與領域技能辨識既有模式 | KIT-034 | 完成 | 參考檔列入白名單；任務與領域技能有讀取條件；檔頭明定非修改依據；三方審查無異議；母版驗證、regression 與封裝通過 |
 | KIT-037 | 文件／封裝 | 發布 | 將已驗證的 v4.10.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-036 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-038 | 功能開發 | 外部工具 | context-index 選用〈外部工具〉`TOOL-xx` 與量測紀錄的工具版本 | KIT-037 | 完成 | 範本與兩技能不點名工具；預設使用者層並保留鎖版例外；授權仍依 AGENTS.md；三方審查無異議；母版驗證與 regression 通過 |
+| KIT-039 | 文件／封裝 | 發布 | 將已驗證的 v4.11.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-038 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
+
+## 已完成項目：KIT-039
+- 範圍：版本升為 4.11.0（`module.json`、`project.md`、兩份 README）；推送 `main`（含 KIT-038 `e45425c`）與 annotated tag `v4.11.0` 至 `richardjheng`，建立 Release 並上傳 `dist/zhanlu-v4.11.0.7z`。`origin` 未推送。
+- 發布前驗證：`verify-zhanlu.ps1 -PackageSource` 通過（4.11.0，portableFiles 44）；regression 92 項通過；`git diff --check` 通過；`7z t` OK。
+- 已完成：tag `v4.11.0` 指向 commit `83ed1db`；Release「湛盧 v4.11.0」非草稿、非預發布，API `releases/latest` 為 v4.11.0。
+- 下載回驗：51,718 bytes；SHA-256 `BE7C175E991E37F353E845B36087C87F79DEE32B958C64EBD4887B9DF65206E7`，與本地一致；`7z t` Everything is Ok，44 個檔案。
+- 備註：`update-zhanlu.ps1` 以 `git pull --ff-only` 更新 kit clone 的目前分支，取得的是該分支最新 commit，不是 Release asset；只想停在發布版本時需自行 checkout tag 或改用 7z 套件。
 
 ## 已完成項目：KIT-038
 - 範圍：`.agents/templates/context-index.md` 新增選用〈外部工具〉（TOOL-xx：用途、Skill、位置、版本、狀態）與說明；measurement-note 在使用已登記外部工具時記 `TOOL-xx` 與當次實際版本；bug-fix、hardware-bringup 量測證據格式同步，並明定外部工具或其 skill 不擴張授權；README 步驟 2 補說明。
