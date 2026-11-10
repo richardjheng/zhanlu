@@ -42,6 +42,14 @@
 | KIT-035 | 文件／封裝 | 發布 | 將已驗證的 v4.9.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-032 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
 | KIT-036 | 功能開發 | 模式契約 | MCU 韌體常見模式契約參考，供任務與領域技能辨識既有模式 | KIT-034 | 完成 | 參考檔列入白名單；任務與領域技能有讀取條件；檔頭明定非修改依據；三方審查無異議；母版驗證、regression 與封裝通過 |
+| KIT-037 | 文件／封裝 | 發布 | 將已驗證的 v4.10.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-036 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
+
+## 已完成項目：KIT-037
+- 範圍：版本升為 4.10.0（`module.json`、`project.md`、兩份 README；README 中「v4.9.0 以前安裝」指舊版，保留）；推送 `main` 與 annotated tag `v4.10.0` 至 `richardjheng`，建立 Release 並上傳 `dist/zhanlu-v4.10.0.7z`。`origin` 未推送。
+- 發布前驗證：`verify-zhanlu.ps1 -PackageSource` 通過（4.10.0，portableFiles 44）；regression 92 項通過；`git diff --check` 通過；`7z t` OK。
+- 已完成：commit `8f3f264` 推送至 `richardjheng/main`，tag `v4.10.0` 指向同一 commit；Release「湛盧 v4.10.0」非草稿、非預發布，API `releases/latest` 為 v4.10.0。
+- 下載回驗：51,257 bytes；SHA-256 `1C489E5D2A9C5A91AF6E6C04BBA928FF9FC7A1C63F18229C0CDF005979CD1CF1`，與本地一致；`7z t` Everything is Ok，44 個檔案。
+- 仍待驗證：既有專案 `-Update` 升級實測；`patterns.md` 在真實專案的使用效果。
 
 ## 已完成項目：KIT-036
 - 範圍：新增 `.agents/skills/architecture-design/patterns.md`，整理 C/C++ MCU 韌體五組模式契約（跨 context 傳遞、狀態機與有界等待、共享資料與硬體存取、輸出仲裁與恢復、靜態分派與編譯期約束）及 C++ 條件小節；列入 `module.json` 的 `portableFiles`。
