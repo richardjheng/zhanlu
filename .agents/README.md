@@ -95,6 +95,8 @@ powershell -ExecutionPolicy Bypass -File .\setup-zhanlu.ps1 `
 - 升級前會把三份作用中文件複製到 `.agents/.backup-<時間戳>/`，且不會自動清除；確認升級無誤後以 `clean-backups.ps1` 清理。
 - `.agents/resources/` 與 `.agents/reference-projects/` 的內容不在白名單內，升級完全不會碰；自行新增的 skill 目錄同理，不會被當成 stale。
 
+日常升級改用目標專案根目錄的 `update-zhanlu.ps1`：它依 `module.json` 的 `releaseRepository` 查詢 GitHub 正式 Release（預設最新，或 `-Version vX.Y.Z`；草稿與預發布一律拒絕），下載 `zhanlu-vX.Y.Z.7z` 並以 Release 提供的 SHA-256 核對，檢查壓縮檔內路徑後解壓到本次建立的暫存目錄，確認套件版本與 tag 相符，再以該套件的 `setup-zhanlu.ps1 -Update` 升級並清除暫存。它不執行任何 Git 更新命令。同版本預設略過（`-Force` 重套），降版預設拒絕（`-AllowDowngrade` 允許）；`-WhatIf` 只顯示「目前版本 → 目標版本」，不下載也不寫入；`-Local`（相容別名 `-NoPull`）不連網，套用腳本所在的 kit 母版。舊版更新器仍使用 `git pull`，第一次請先從 Release 取得新版套件，以套件的 `setup-zhanlu.ps1 -Update` 遷移一次。
+
 若曾在目標專案手改過 `AGENTS.md` 或任一 skill，升級會覆蓋這些修改。共用規則的修改應該回到母版，不要留在單一專案。
 
 解除安裝使用 `setup-zhanlu.ps1 -Uninstall`，只刪除已安裝 manifest 列出的檔案；預設保留三份作用中文件、備份與資料掛載點內容，`.git/info/exclude` 只保留仍存在路徑的規則。加上 `-RemoveProjectLayer` 才刪除作用中文件與備份。

@@ -3,6 +3,7 @@
   "version": "4.11.0",
   "coreVersion": "ZHANLU-CORE-v4",
   "archiveName": "zhanlu-v4.11.0.7z",
+  "releaseRepository": "richardjheng/zhanlu",
   "legacyMarkerNames": [
     "embedded-firmware-ai-collaboration-kit"
   ],

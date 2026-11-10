@@ -12,7 +12,13 @@ $sourceRoot = (Resolve-Path -LiteralPath $RootPath).Path
 $manifest = Get-Content -LiteralPath (Join-Path $sourceRoot '.agents/module.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $scratchName = 'zhanlu-regression-' + [guid]::NewGuid().ToString('N')
-$scratch = Join-Path ([System.IO.Path]::GetFullPath($env:TEMP)) $scratchName
+$scratchTempRoot = [System.IO.Path]::GetFullPath($env:TEMP)
+# PS 5.1 cannot always expand an 8.3 cwd under a restricted user profile. Use the
+# user's canonical local temporary folder for the disposable test projects then.
+if ($scratchTempRoot -match '~[0-9]+(?:\\|$)') {
+    $scratchTempRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Temp'
+}
+$scratch = Join-Path $scratchTempRoot $scratchName
 New-Item -ItemType Directory -Path $scratch | Out-Null
 $script:checks = 0
 $script:links = @()
@@ -23,9 +29,14 @@ function Assert-Case([bool]$Condition, [string]$Message) {
     Write-Output "  [PASS] $Message"
 }
 
-function Invoke-Child([string]$Script, [string[]]$Arguments = @()) {
+function Invoke-Child([string]$Script, [string[]]$Arguments = @(), [string]$WorkingDirectory,
+    [hashtable]$EnvironmentVariables = @{}) {
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo.FileName = (Get-Command powershell.exe).Source
+    if ($WorkingDirectory) { $process.StartInfo.WorkingDirectory = $WorkingDirectory }
+    foreach ($key in $EnvironmentVariables.Keys) {
+        $process.StartInfo.EnvironmentVariables[$key] = $EnvironmentVariables[$key]
+    }
     $nativeArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Script) + $Arguments
     $process.StartInfo.Arguments = ($nativeArguments | ForEach-Object {
         # Windows command-line quoting, without invoking another shell.
@@ -80,8 +91,86 @@ function Assert-Ignored([string]$Repo, [string]$Path) {
     Assert-Case ($LASTEXITCODE -eq 0) "Git ignores $Path"
 }
 
+# Release fixtures use the real 7-Zip and installer, with local metadata/downloads.
+function New-ReleaseMetadata([string]$Archive) {
+    return [pscustomobject]@{
+        tag_name = "v$($manifest.version)"; draft = $false; prerelease = $false
+        html_url = "https://github.com/$($manifest.releaseRepository)/releases/tag/v$($manifest.version)"
+        assets = @([pscustomobject]@{
+            name = "zhanlu-v$($manifest.version).7z"
+            digest = 'sha256:' + (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+            browser_download_url = 'https://example.invalid/offline-only.7z'
+        })
+    }
+}
+
+function Invoke-ReleaseUpdate([string]$Script, $Metadata, [string]$Archive,
+    [string[]]$Options = @(), [string]$WorkingDirectory) {
+    [System.IO.File]::WriteAllText($releaseJson, ($Metadata | ConvertTo-Json -Depth 20), $utf8)
+    # Preserve a useful stack trace even when Windows localizes the native error text.
+    $runner = Join-Path $scratch 'release-runner.ps1'
+    [System.IO.File]::WriteAllText($runner, @'
+[CmdletBinding(SupportsShouldProcess)]
+param([string]$Entry, [string]$TargetPath, [string]$Version, [switch]$Force,
+    [switch]$AllowDowngrade, [switch]$RemoveStale, [string]$TestReleaseJson, [string]$TestAssetPath)
+$entryArgs = @{} + $PSBoundParameters
+$entryArgs.Remove('Entry')
+try { & $Entry @entryArgs } catch { Write-Output $_.ScriptStackTrace; throw }
+'@, $utf8)
+    # A parent-directory timestamp also sees PowerShell's own transient policy
+    # probes. Watch actual updater staging creations, including create-then-delete.
+    $watcher = New-Object System.IO.FileSystemWatcher($releaseTemp, 'zhanlu-*')
+    $watcher.NotifyFilter = [System.IO.NotifyFilters]::DirectoryName
+    $eventId = 'release-stage-' + [guid]::NewGuid().ToString('N')
+    Register-ObjectEvent -InputObject $watcher -EventName Created -SourceIdentifier $eventId | Out-Null
+    try {
+        $watcher.EnableRaisingEvents = $true
+        $result = Invoke-Child $runner (@('-Entry', $Script, '-TestReleaseJson', $releaseJson, '-TestAssetPath', $Archive) + $Options) `
+            $WorkingDirectory @{ TEMP = $releaseTemp; TMP = $releaseTemp; GIT_TRACE = $gitTrace }
+        $watcher.EnableRaisingEvents = $false
+        $result['CreatedStages'] = @(Get-Event -SourceIdentifier $eventId -ErrorAction SilentlyContinue).Count
+        return $result
+    } finally {
+        Unregister-Event -SourceIdentifier $eventId
+        Remove-Event -SourceIdentifier $eventId -ErrorAction SilentlyContinue
+        $watcher.Dispose()
+    }
+}
+
+function Set-InstalledVersion([string]$Target, [string]$Value) {
+    $valueManifest = Read-Manifest $Target
+    $valueManifest.version = $Value
+    Write-Manifest $Target $valueManifest
+}
+
+function Assert-ReleaseRejected($Metadata, [string]$Archive, [string]$Expected,
+    [string]$Label, [string[]]$Options = @()) {
+    $before = @(Snapshot-Files $releaseTarget)
+    $result = Invoke-ReleaseUpdate $installedUpdater $Metadata $Archive $Options $releaseTarget
+    Assert-Case ($result.Exit -ne 0 -and $result.Output -match $Expected) $Label
+    Assert-Case (-not (Compare-Object $before @(Snapshot-Files $releaseTarget))) "$Label leaves target unchanged"
+    Assert-Case (@(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) "$Label cleans temporary directory"
+}
+
+function New-FixtureArchive([string]$Directory, [string]$Name) {
+    $archivePath = Join-Path $scratch $Name
+    Push-Location -LiteralPath $Directory
+    try {
+        & $sevenZip a -t7z $archivePath '.\*' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot create release fixture archive.' }
+    } finally { Pop-Location }
+    return $archivePath
+}
+
 try {
     Write-Output "Regression scratch: $scratch"
+    $cwdProbe = Join-Path $scratch 'cwd-probe.ps1'
+    [System.IO.File]::WriteAllText($cwdProbe, @'
+$ErrorActionPreference = 'Stop'
+try { Get-Location | Out-String } catch { $Host.UI.WriteLine($_.Exception.ToString()); throw }
+'@, $utf8)
+    $result = Invoke-Child $cwdProbe @() $scratch
+    Assert-Case ($result.Exit -eq 0) 'Child PowerShell starts in isolated working directory'
     $installer = Join-Path $sourceRoot 'setup-zhanlu.ps1'
     $verifier = Join-Path $sourceRoot 'verify-zhanlu.ps1'
     foreach ($badPath in @('../sentinel.txt', 'C:\sentinel.txt', '\\server\share\sentinel.txt',
@@ -360,10 +449,162 @@ try {
     Assert-Case ($result.Exit -ne 0 -and $result.Output -match 'No installed module') 'Reject uninstall without installed manifest'
     $result = Invoke-Child $installer @('-TargetPath', $delta, '-Uninstall', '-Update')
     Assert-Case ($result.Exit -ne 0) 'Reject uninstall combined with update'
+    # Validate releaseRepository in an isolated copy, including a missing property.
+    foreach ($badRepository in @($null, '', 'owner', 'owner/repo/extra', 'owner /repo')) {
+        $fixtureManifest = Read-Manifest $fixture
+        if ($null -eq $badRepository) { $fixtureManifest.PSObject.Properties.Remove('releaseRepository') }
+        else { $fixtureManifest.releaseRepository = $badRepository }
+        Write-Manifest $fixture $fixtureManifest
+        $result = Invoke-Child $verifier @('-RootPath', $fixture, '-PackageSource')
+        Assert-Case ($result.Exit -ne 0 -and $result.Output -match 'releaseRepository') 'Reject missing/invalid releaseRepository'
+        $fixtureManifest | Add-Member NoteProperty releaseRepository $manifest.releaseRepository -Force
+        Write-Manifest $fixture $fixtureManifest
+    }
+
+    $releaseTarget = Join-Path $scratch 'release target [board]'
+    $releaseClone = Join-Path $releaseTarget 'tools/kit clone'
+    $releaseTemp = Join-Path $scratch 'release-temp'
+    $releaseJson = Join-Path $scratch 'release.json'
+    $gitTrace = Join-Path $scratch 'release-git.trace'
+    New-Item -ItemType Directory -Path $releaseTarget, $releaseTemp | Out-Null
+    Run-Git $releaseTarget @('init', '--quiet')
+    Copy-Item -LiteralPath $unpacked -Destination $releaseClone -Recurse
+    Run-Git $releaseClone @('init', '--quiet')
+    $result = Invoke-Child (Join-Path $releaseClone 'setup-zhanlu.ps1') @('-TargetPath', $releaseTarget)
+    Assert-Case ($result.Exit -eq 0) 'Install release regression project from nested kit clone'
+    $installedUpdater = Join-Path $releaseTarget 'update-zhanlu.ps1'
+    $cloneUpdater = Join-Path $releaseClone 'update-zhanlu.ps1'
+    $goodArchive = Join-Path $packageDir $manifest.archiveName
+    $goodMetadata = New-ReleaseMetadata $goodArchive
+    $activeBeforeRelease = @($activeFiles | ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $releaseTarget $_)).Hash })
+    $cloneBeforeRelease = @(Snapshot-Files $releaseClone)
+
+    foreach ($entry in @($installedUpdater, $cloneUpdater)) {
+        Set-InstalledVersion $releaseTarget '0.0.1'
+        $result = Invoke-ReleaseUpdate $entry $goodMetadata $goodArchive @() (Split-Path -Parent $entry)
+        Assert-Case ($result.Exit -eq 0 -and (Read-Manifest $releaseTarget).version -eq $manifest.version) "Release updates same target from $entry"
+        Assert-Case ($result.Output.Contains("Project: $releaseTarget")) 'Reports the installed target rather than the kit clone'
+        Assert-Case (@(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) 'Successful release update cleans staging'
+        Assert-Case ($result.CreatedStages -eq 1) 'Watcher observes exactly one updater staging directory'
+    }
+    Assert-Case (-not (Compare-Object $cloneBeforeRelease @(Snapshot-Files $releaseClone))) 'Release update leaves clone content and Git metadata unchanged'
+    $activeAfterRelease = @($activeFiles | ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $releaseTarget $_)).Hash })
+    Assert-Case (-not (Compare-Object $activeBeforeRelease $activeAfterRelease)) 'Release update preserves active project documents'
+    Assert-Ignored $releaseTarget 'tools/kit clone/update-zhanlu.ps1'
+    $trace = [System.IO.File]::ReadAllText($gitTrace)
+    Assert-Case ($trace -match 'built-in: git' -and $trace -notmatch '(?im)built-in: git .*\b(pull|fetch|checkout)\b') 'Git trace records installer probes but no update command in either repository'
+
+    $sameBefore = @(Snapshot-Files $releaseTarget)
+    $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata (Join-Path $scratch 'does-not-exist.7z')
+    Assert-Case ($result.Exit -eq 0 -and $result.Output -match 'Already up to date') 'Same version skips download and install'
+    Assert-Case (-not (Compare-Object $sameBefore @(Snapshot-Files $releaseTarget)) -and
+        $result.CreatedStages -eq 0) 'Same-version skip writes neither target nor temporary directory'
+    [System.IO.File]::WriteAllText((Join-Path $releaseTarget 'AGENTS.md'), 'Disposable stale core', $utf8)
+    $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata $goodArchive @('-Force')
+    Assert-Case ($result.Exit -eq 0 -and (Get-FileHash -LiteralPath (Join-Path $releaseTarget 'AGENTS.md')).Hash -eq
+        (Get-FileHash -LiteralPath (Join-Path $unpacked 'AGENTS.md')).Hash) 'Force reapplies the same version'
+    Set-InstalledVersion $releaseTarget '99.0.0'
+    Assert-ReleaseRejected $goodMetadata $goodArchive 'Downgrade refused' 'Refuse downgrade even with Force' @('-Force')
+    $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata $goodArchive @('-AllowDowngrade')
+    Assert-Case ($result.Exit -eq 0 -and (Read-Manifest $releaseTarget).version -eq $manifest.version) 'AllowDowngrade explicitly permits older release'
+
+    Set-InstalledVersion $releaseTarget '0.0.1'
+    $previewBefore = @(Snapshot-Files $releaseTarget)
+    $result = Invoke-ReleaseUpdate $cloneUpdater $goodMetadata (Join-Path $scratch 'does-not-exist.7z') @('-WhatIf')
+    Assert-Case ($result.Exit -eq 0 -and $result.Output.Contains("Version: 0.0.1 -> $($manifest.version)") -and
+        $result.Output.Contains('/releases/latest') -and $result.Output.Contains($goodMetadata.html_url) -and
+        $result.Output.Contains($goodMetadata.assets[0].digest.Substring(7))) 'WhatIf displays versions, latest source, release URL and digest'
+    Assert-Case (-not (Compare-Object $previewBefore @(Snapshot-Files $releaseTarget)) -and
+        $result.CreatedStages -eq 0 -and
+        @(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) 'WhatIf creates no files or temporary directory'
+    $result = Invoke-ReleaseUpdate $cloneUpdater $goodMetadata $goodArchive @('-WhatIf', '-Version', "v$($manifest.version)")
+    Assert-Case ($result.Exit -eq 0 -and $result.Output.Contains("/releases/tags/v$($manifest.version)")) 'Version selects the exact release tag endpoint'
+    Assert-ReleaseRejected $goodMetadata $goodArchive 'unexpected release tag' 'Reject API tag different from Version' @('-Version', 'v0.0.2')
+
+    foreach ($case in @('missing digest', 'bad digest', 'wrong asset name', 'draft', 'prerelease', 'missing flags')) {
+        $badMetadata = New-ReleaseMetadata $goodArchive
+        switch ($case) {
+            'missing digest' { $badMetadata.assets[0].PSObject.Properties.Remove('digest'); $expected = 'digest is missing' }
+            'bad digest' { $badMetadata.assets[0].digest = 'sha256:' + ('0' * 64); $expected = 'SHA-256 mismatch' }
+            'wrong asset name' { $badMetadata.assets[0].name = 'wrong.7z'; $expected = 'exactly one release asset' }
+            'draft' { $badMetadata.draft = $true; $expected = 'Draft or prerelease' }
+            'prerelease' { $badMetadata.prerelease = $true; $expected = 'Draft or prerelease' }
+            'missing flags' { $badMetadata.PSObject.Properties.Remove('draft'); $expected = 'Draft or prerelease' }
+        }
+        Assert-ReleaseRejected $badMetadata $goodArchive $expected "Reject $case" @('-Force')
+    }
+
+    $badPackage = Join-Path $scratch 'bad-package'
+    Copy-Item -LiteralPath $unpacked -Destination $badPackage -Recurse
+    foreach ($case in @('version', 'projectKind')) {
+        $badManifest = Read-Manifest $unpacked
+        if ($case -eq 'version') { $badManifest.version = '0.0.2' } else { $badManifest.projectKind = 'firmware' }
+        Write-Manifest $badPackage $badManifest
+        $badArchive = New-FixtureArchive $badPackage "bad-$case.7z"
+        Assert-ReleaseRejected (New-ReleaseMetadata $badArchive) $badArchive 'Package version/projectKind' "Reject extracted $case mismatch" @('-Force')
+    }
+    Write-Manifest $badPackage (Read-Manifest $unpacked)
+    [System.IO.File]::WriteAllText((Join-Path $badPackage 'setup-zhanlu.ps1'), "Write-Output 'fixture installer failure detail'; exit 27", $utf8)
+    $badArchive = New-FixtureArchive $badPackage 'installer-failure.7z'
+    Assert-ReleaseRejected (New-ReleaseMetadata $badArchive) $badArchive 'fixture installer failure detail' 'Propagate installer failure and preserve diagnostic'
+    Assert-Case ($script:lastChildOutput -match 'failed with exit code 27') 'Installer nonzero exit is reported'
+
+    # Rename entries inside a real 7z container; verify the raw listing before testing.
+    $unsafeSource = Join-Path $scratch 'unsafe-source'
+    New-Item -ItemType Directory -Path $unsafeSource | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $unsafeSource 'safe.txt'), 'archive sentinel', $utf8)
+    $unsafeIndex = 0
+    foreach ($unsafeName in @('../escape.txt', 'C:/escape.txt', '/escape.txt')) {
+        $unsafeIndex++
+        $badArchive = New-FixtureArchive $unsafeSource "unsafe-$unsafeIndex.7z"
+        & $sevenZip rn $badArchive 'safe.txt' $unsafeName | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Cannot create unsafe archive fixture: $unsafeName" }
+        $rawListing = @(& $sevenZip l -slt -ba $badArchive)
+        $listingExit = $LASTEXITCODE
+        $script:lastChildOutput = $rawListing -join "`n"
+        $normalizedListing = @($rawListing | ForEach-Object { $_.Replace('\', '/') })
+        Assert-Case ($listingExit -eq 0 -and $normalizedListing -contains "Path = $unsafeName") "Fixture contains raw unsafe path $unsafeName"
+        Assert-ReleaseRejected (New-ReleaseMetadata $badArchive) $badArchive 'safe relative file paths' "Reject archive path $unsafeName before extraction" @('-Force')
+        Assert-Case (-not (Test-Path -LiteralPath (Join-Path $releaseTemp 'escape.txt'))) 'Archive traversal created no outside file'
+    }
+
+    # Inspect the actual listing parser for link encodings without requiring symlink privileges.
+    $updateTokens = $null; $updateErrors = $null
+    $updateAst = [System.Management.Automation.Language.Parser]::ParseFile($installedUpdater, [ref]$updateTokens, [ref]$updateErrors)
+    Assert-Case ($updateErrors.Count -eq 0) 'Release updater parses in Windows PowerShell'
+    $listingFunction = $updateAst.Find({ param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-ArchiveListing'
+    }, $true)
+    . ([scriptblock]::Create($listingFunction.Extent.Text))
+    foreach ($linkLine in @('Symbolic Link = ../outside', 'Hard Link = safe.txt', 'Attributes = A_ lrwxrwxrwx', 'Reparse = +')) {
+        $linkRejected = $false
+        try { Assert-ArchiveListing @('Path = link', $linkLine, '') (Join-Path $releaseTemp 'package') } catch { $linkRejected = $_.Exception.Message -match 'link entry' }
+        Assert-Case $linkRejected "Reject archive listing link: $linkLine"
+    }
+
+    $result = Invoke-Child $cloneUpdater @('-Local', '-TargetPath', $releaseTarget) $releaseClone @{ TEMP = $releaseTemp; GIT_TRACE = $gitTrace }
+    Assert-Case ($result.Exit -eq 0 -and (Read-Manifest $releaseTarget).version -eq $manifest.version -and
+        $result.Output -match 'N/A \(local kit') 'Local kit updates without a release source'
+    $result = Invoke-Child $cloneUpdater @('-NoPull', '-Force', '-TargetPath', $releaseTarget) $releaseClone @{ TEMP = $releaseTemp }
+    Assert-Case ($result.Exit -eq 0) 'NoPull remains an alias for Local'
+    $beforeLocalRejection = @(Snapshot-Files $releaseTarget)
+    $result = Invoke-Child $installedUpdater @('-Local') $releaseTarget @{ TEMP = $releaseTemp }
+    Assert-Case ($result.Exit -ne 0 -and $result.Output -match 'Local requires' -and
+        -not (Compare-Object $beforeLocalRejection @(Snapshot-Files $releaseTarget))) 'Local rejects an installed copy without modifying it'
+
+    # RemoveStale reaches the package installer, while project files stay untouched.
+    $stalePath = Join-Path $releaseTarget 'retired-release.txt'
+    [System.IO.File]::WriteAllText($stalePath, 'retired', $utf8)
+    $oldManifest = Read-Manifest $releaseTarget
+    $oldManifest.portableFiles += 'retired-release.txt'
+    Write-Manifest $releaseTarget $oldManifest
+    $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata $goodArchive @('-Force', '-RemoveStale')
+    Assert-Case ($result.Exit -eq 0 -and -not (Test-Path -LiteralPath $stalePath)) 'Release updater forwards RemoveStale'
+    Assert-Case (@(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) 'All release staging directories are removed'
     Write-Output "Regression passed: $script:checks checks."
 } finally {
     $resolvedScratch = [System.IO.Path]::GetFullPath($scratch)
-    $tempPrefix = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+    $tempPrefix = [System.IO.Path]::GetFullPath($scratchTempRoot).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
     if (-not $resolvedScratch.StartsWith($tempPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
         (Split-Path -Leaf $resolvedScratch) -ne $scratchName) {
         throw 'Refusing cleanup outside the verified scratch directory.'

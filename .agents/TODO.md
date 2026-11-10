@@ -45,6 +45,14 @@
 | KIT-037 | 文件／封裝 | 發布 | 將已驗證的 v4.10.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-036 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-038 | 功能開發 | 外部工具 | context-index 選用〈外部工具〉`TOOL-xx` 與量測紀錄的工具版本 | KIT-037 | 完成 | 範本與兩技能不點名工具；預設使用者層並保留鎖版例外；授權仍依 AGENTS.md；三方審查無異議；母版驗證與 regression 通過 |
 | KIT-039 | 文件／封裝 | 發布 | 將已驗證的 v4.11.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-038 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
+| KIT-040 | 功能開發／Bug fix | 更新工具 | `update-zhanlu.ps1` 改為以 GitHub 正式 Release 更新，並修正在目標專案根目錄執行會對韌體 repo `git pull` | KIT-039 | 完成 | 不執行 Git 更新命令；digest、asset 名稱、版本與路徑檢查；離線 regression 通過；三方共識 |
+
+## 已完成項目：KIT-040
+- 範圍：`update-zhanlu.ps1` 改為依 `module.json` 新增的 `releaseRepository`（`richardjheng/zhanlu`）查詢 GitHub 正式 Release，下載 `zhanlu-vX.Y.Z.7z`、核對 API asset `digest`、檢查壓縮檔路徑與解壓後 reparse point、確認套件版本等於 tag 且為 kit-source，再以套件的 `setup-zhanlu.ps1 -Update` 升級並清除暫存；不執行 Git 更新命令。新增 `-Version`、`-Force`、`-AllowDowngrade`、`-Local`（`-NoPull` 別名）；`-WhatIf` 零寫入。`verify-zhanlu.ps1` 檢查 `releaseRepository` 格式；兩份 README 改寫升級段落與舊版首次遷移。
+- 根因修正：舊版在目標專案根目錄執行時以該處為 kit，只比對 Git 根目錄即執行 `git pull --ff-only`，會動到使用者韌體 repo（Antigravity 發現、Claude 於 `update-zhanlu.ps1:68,129` 查證）。新版不再有 Git 更新命令。
+- 分工：Agora 三方討論採方案 B（`.agora/threads/20261110-100854-update-zhanlu-ps1-改為以-Release-更新/`）；Codex 實作 `update-zhanlu.ps1`、驗證器、regression、根 README；因 Agora 沙箱禁止接手方寫入 `.agents/`，`module.json` 與 `.agents/README.md` 由 Claude 修改；`.agora/config.json` 的 `check` 設為三條驗收命令。
+- 已完成靜態與離線驗證：Claude 重跑 `agora check` exit=0；`verify-zhanlu.ps1 -PackageSource` 通過；regression 177 項通過；`git diff --check` 通過。
+- 仍待驗證：真實 GitHub API／下載、TLS、rate limit、proxy；無 7-Zip 主機；真實連結項目的壓縮檔；Claude 僅抽查安全相關程式碼，未逐行審查全部 diff。更新器保留僅供測試的 `-TestReleaseJson`／`-TestAssetPath` 參數。
 
 ## 已完成項目：KIT-039
 - 範圍：版本升為 4.11.0（`module.json`、`project.md`、兩份 README）；推送 `main`（含 KIT-038 `e45425c`）與 annotated tag `v4.11.0` 至 `richardjheng`，建立 Release 並上傳 `dist/zhanlu-v4.11.0.7z`。`origin` 未推送。

@@ -87,6 +87,9 @@ try {
 }
 
 if ($manifest) {
+    if ([string]$manifest.releaseRepository -notmatch '^[^/\s]+/[^/\s]+$') {
+        Add-ValidationError 'module.json releaseRepository is missing or invalid (expected owner/repo).'
+    }
     try {
         $portableFiles = @(Get-ModulePortableFiles $manifest)
         $installFiles = @(Get-ModuleInstallFiles $manifest)

@@ -10,7 +10,7 @@
 
 - Windows 與 Windows PowerShell 5.1 以上；五支腳本都以 `powershell.exe` 執行。
 - `git`：從 GitHub 取得模組需要；安裝器把整個模組排除在目標專案版控之外時同樣需要它在 PATH 上。沒有 `git` 時安裝仍會完成，但會改為印出需要手動加入的忽略項目。
-- 7-Zip：只有走壓縮套件路線才需要；要重新打包 (`pack.ps1`) 時需要 `7z.exe` 在 PATH 或安裝於預設路徑。
+- 7-Zip：Release 更新、解壓套件與重新打包 (`pack.ps1`) 都需要 `7z.exe` 在 PATH 或安裝於預設路徑。
 - 目標專案建議已在 Git 版控下。
 - 安裝完成後若 VSCode 已經開著目標專案，請重新載入視窗，工具才會重新掃描規則與 skill。
 
@@ -33,12 +33,12 @@
 
 ## 安裝流程 A：從 GitHub clone（建議）
 
-把模組 clone 進目標專案，再對上一層執行安裝器。clone 出來的 `zhanlu/` 之後就是這個專案的升級來源，`git pull` 後直接 `-Update` 即可。
+把模組 clone 進目標專案，再對上一層執行安裝器。clone 取得目前分支內容；日後預設以 GitHub Release 更新已安裝專案，不會更新 clone 或專案的 Git 分支。
 
 ```powershell
 # 1. 取得模組
 cd D:\work\target-firmware-project
-git clone https://github.com/ITE-Richard/zhanlu.git
+git clone https://github.com/richardjheng/zhanlu.git
 
 # 2. 安裝到專案根目錄
 cd zhanlu
@@ -53,7 +53,7 @@ git status --porcelain
 
 這個判斷取自安裝器自己的路徑，不是猜的：kit 在目標之外就不會產生這條規則，clone 到 `tools\zhanlu` 這種更深的位置也會寫出正確的相對路徑。
 
-不想讓 clone 留在專案內，就改 clone 到專案外（例如 `D:\tools\zhanlu`），用 `-TargetPath` 指向目標專案即可。代價是升級時要自己記得那份 clone 放在哪。
+不想讓 clone 留在專案內，就改 clone 到專案外（例如 `D:\tools\zhanlu`），用 `-TargetPath` 指向目標專案即可。安裝後可直接使用目標根目錄的 `update-zhanlu.ps1` 取得 Release。
 
 ## 安裝流程 B：從壓縮套件
 
@@ -248,48 +248,47 @@ LA log 要用**協定解碼後的 CSV**，一列一筆 transaction；raw sample 
 
 ## 升級既有專案
 
-已經裝過本模組的專案，不要重新執行乾淨安裝，改用升級。
-
-若你用流程 A 把 `zhanlu/` clone 在專案內，升級就是**一行**：
+已安裝新版更新器的專案，可從專案根目錄執行：
 
 ```powershell
-cd D:\work\target-firmware-project\zhanlu
+.\update-zhanlu.ps1 -WhatIf
 .\update-zhanlu.ps1
 ```
 
-`update-zhanlu.ps1` 做兩件事：先在 kit 目錄 `git pull --ff-only`，再對專案執行 `setup-zhanlu.ps1 -Update`。專案位置由它自己往上找（`.agents/module.json` 的 `projectKind` 不是 `kit-source` 的那一層），所以不必給 `-TargetPath`，也不會誤認 kit 自己。
+預設依腳本旁 `.agents/module.json` 的 `releaseRepository` 查詢 GitHub `releases/latest`；指定 `-Version vX.Y.Z` 則查詢 `releases/tags/vX.Y.Z`。只接受正式 Release，拒絕 draft／prerelease，也不回退到 Git tag 或分支。更新器不執行 Git pull、fetch 或 checkout。
+
+目標預設是腳本所在的已安裝專案；若腳本位於 kit-source（例如專案中的 `zhanlu/` clone），則往上尋找最近的已安裝專案。也可用 `-TargetPath` 明確指定。
+
+更新器顯示目前版本 → 目標版本、來源、Release URL 與 asset SHA-256。asset 必須恰好名為 `zhanlu-vX.Y.Z.7z`，並提供 `sha256:` digest；下載後先比對雜湊、執行 `7z t`、檢查項目路徑與連結，再解壓及核對套件版本與 `kit-source` 身分，最後執行套件內的 `setup-zhanlu.ps1 -Update`。任何檢查失敗即停止，暫存目錄在結束時清理。
 
 | 選項 | 用途 |
 |---|---|
-| `-WhatIf` | 先看計畫，`git pull` 與安裝都不執行 |
-| `-NoPull` | 跳過 `git pull`，直接套用手上這份 kit |
-| `-RemoveStale` | 一併刪除新版白名單已移除的檔案；不加只回報 |
-| `-TargetPath` | 手動指定專案，指定後就不往上搜尋 |
+| `-Version vX.Y.Z` | 指定正式 Release tag |
+| `-WhatIf` | 只查詢 metadata 並顯示版本與來源，不下載、不建立暫存、不安裝 |
+| `-Force` | 同版本仍重新套用；不跳過安全檢查，也不允許降版 |
+| `-AllowDowngrade` | 明確允許安裝較舊版本；預設拒絕降版 |
+| `-Local` | 離線套用腳本所在 kit；只允許 kit-source，不接受已安裝副本作為來源 |
+| `-NoPull` | `-Local` 的相容別名 |
+| `-RemoveStale` | 傳給安裝器，刪除新版白名單已移除的檔案；預設只回報 |
+| `-TargetPath` | 手動指定已安裝專案 |
 
-只有 kit 本身就是一個 git clone 的根目錄時才會 pull。7z 解壓出來的 kit、或放在專案 repo 底下而沒有自己 `.git` 的 kit，會直接跳過並印出原因 —— 否則 `git pull` 會落在**你的韌體專案** repo 上。
-
-`git pull` 失敗會**中止**整個流程，不會拿舊 kit 去覆蓋 —— 否則你會以為升級了，其實裝回同一版。
-
-要拆開手動執行也可以：
-
-```powershell
-cd D:\work\target-firmware-project\zhanlu
-git pull
-powershell -ExecutionPolicy Bypass -File .\setup-zhanlu.ps1 -TargetPath .. -Update -WhatIf
-powershell -ExecutionPolicy Bypass -File .\setup-zhanlu.ps1 -TargetPath .. -Update
-```
-
-從壓縮套件或母版升級則是：
+同版本預設回報已是最新並略過。`-Local` 不連網，Release URL 與 asset SHA-256 顯示不適用；同樣遵守版本比較、降版與 `-Force` 規則，不能與 `-Version` 合用。
 
 ```powershell
-# 先看計畫，不寫入任何檔案
-powershell -ExecutionPolicy Bypass -File "$kitDir\setup-zhanlu.ps1" `
-  -TargetPath $target -Update -WhatIf
-
-# 確認後實際升級
-powershell -ExecutionPolicy Bypass -File "$kitDir\setup-zhanlu.ps1" `
-  -TargetPath $target -Update
+# 從 kit 目錄離線套用本地內容
+.\update-zhanlu.ps1 -Local -TargetPath D:\work\target-firmware-project -Force
 ```
+
+### 舊版首次遷移
+
+舊更新器仍會使用 Git pull，不能用來啟動這個 Release 流程。請先從 [正式 Release](https://github.com/richardjheng/zhanlu/releases) 取得**含新版更新器與 releaseRepository 欄位**的套件，解壓到專案之外，再直接使用該套件的安裝器遷移一次；不要只替換單一更新腳本。尚未發布新版套件時，可使用已審查、含上述變更的母版 kit。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$kitDir\setup-zhanlu.ps1" -TargetPath $target -Update -WhatIf
+powershell -ExecutionPolicy Bypass -File "$kitDir\setup-zhanlu.ps1" -TargetPath $target -Update
+```
+
+完成後即可從專案根目錄執行新版 `update-zhanlu.ps1`。此遷移與日後更新均保留三份作用中專案文件；安裝器繼續維護 `.git/info/exclude`。
 
 ### 升級會動到什麼、不會動到什麼
 
@@ -323,7 +322,7 @@ powershell -ExecutionPolicy Bypass -File .\clean-backups.ps1 -KeepLatest 1
 
 若曾在目標專案手改過 `AGENTS.md` 或任一 skill，升級會覆蓋這些修改。共用規則的修改應該回到母版，不要留在單一專案。
 
-> 流程 A 裝完後，專案內會有**兩份**模組：根目錄那份是 AI 實際讀的，`zhanlu/` 那份只當升級來源，內容相同是正常的。改規則要回母版改，改根目錄那份會在下次 `-Update` 被蓋掉。
+> 流程 A 裝完後，專案內會有**兩份**模組：根目錄那份是 AI 實際讀的，`zhanlu/` 那份可當離線 kit；Release 更新只更新根目錄安裝，兩份版本可能不同。改規則要回母版改，改根目錄那份會在下次 `-Update` 被蓋掉。
 
 ## 解除安裝
 
@@ -368,7 +367,7 @@ powershell -ExecutionPolicy Bypass -File .\zhanlu\setup-zhanlu.ps1 -TargetPath .
 - `.agents/resources/`、`.agents/reference-projects/`：資料掛載點，各自帶一份 `.gitignore`。
 - `setup-zhanlu.ps1`：安全安裝、專案層初始化與 `-Update` 升級。
 - `verify-zhanlu.ps1`：結構、引用與 skill 驗證。
-- `update-zhanlu.ps1`：一行升級，`git pull` 後對所在專案執行 `-Update`。
+- `update-zhanlu.ps1`：驗證正式 Release 的 SHA-256 後升級，支援離線 kit，不更新 Git 分支。
 - `clean-backups.ps1`：刪除 `-Update` 留下的 `.agents/.backup-*` 專案層備份。
 - `pack.ps1`：由白名單重建 7z 套件。
 - `.agents/README.md`：安裝後保留在目標專案內的完整維護說明。
