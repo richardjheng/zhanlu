@@ -43,6 +43,14 @@
 | KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
 | KIT-036 | 功能開發 | 模式契約 | MCU 韌體常見模式契約參考，供任務與領域技能辨識既有模式 | KIT-034 | 完成 | 參考檔列入白名單；任務與領域技能有讀取條件；檔頭明定非修改依據；三方審查無異議；母版驗證、regression 與封裝通過 |
 | KIT-037 | 文件／封裝 | 發布 | 將已驗證的 v4.10.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-036 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
+| KIT-038 | 功能開發 | 外部工具 | context-index 選用〈外部工具〉`TOOL-xx` 與量測紀錄的工具版本 | KIT-037 | 完成 | 範本與兩技能不點名工具；預設使用者層並保留鎖版例外；授權仍依 AGENTS.md；三方審查無異議；母版驗證與 regression 通過 |
+
+## 已完成項目：KIT-038
+- 範圍：`.agents/templates/context-index.md` 新增選用〈外部工具〉（TOOL-xx：用途、Skill、位置、版本、狀態）與說明；measurement-note 在使用已登記外部工具時記 `TOOL-xx` 與當次實際版本；bug-fix、hardware-bringup 量測證據格式同步，並明定外部工具或其 skill 不擴張授權；README 步驟 2 補說明。
+- 決策（Agora 三方，`.agora/threads/20261110-083006-外部工具-skill-如-dlb4-control-的歸屬與管理/`）：外部工具 skill 由工具 repository 維護，預設裝在三工具使用者層；只有專案需固定工具版本時，才把工具與完整 skill 同版複製進專案，不得覆蓋模組受管檔且需使用者明確同意；zhanlu 核心不點名任何工具；登記不代表已安裝或已授權。
+- 相關外部工作（不在本 repository）：dlb4_web `922ba2e` 新增 `tools/install-skill.ps1`（三工具使用者層登記、安裝紀錄、先檢查後修改、inherits 與篩選檢查）與 `locate_root.py`（取消寫死路徑、鎖版核對）；已在本機安裝，Codex 與 Antigravity 新 session 皆列出 dlb4-control。
+- 已完成靜態驗證：`verify-zhanlu.ps1 -PackageSource` 通過；regression 92 項通過；`git diff --check` 通過。
+- 仍待驗證：既有專案手動加入〈外部工具〉後的實際使用；版本號未升。
 
 ## 已完成項目：KIT-037
 - 範圍：版本升為 4.10.0（`module.json`、`project.md`、兩份 README；README 中「v4.9.0 以前安裝」指舊版，保留）；推送 `main` 與 annotated tag `v4.10.0` 至 `richardjheng`，建立 Release 並上傳 `dist/zhanlu-v4.10.0.7z`。`origin` 未推送。
