@@ -1,8 +1,8 @@
 {
   "name": "zhanlu",
-  "version": "4.11.0",
+  "version": "4.12.0",
   "coreVersion": "ZHANLU-CORE-v4",
-  "archiveName": "zhanlu-v4.11.0.7z",
+  "archiveName": "zhanlu-v4.12.0.7z",
   "releaseRepository": "richardjheng/zhanlu",
   "legacyMarkerNames": [
     "embedded-firmware-ai-collaboration-kit"
