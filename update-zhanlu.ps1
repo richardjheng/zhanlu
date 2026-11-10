@@ -164,7 +164,17 @@ try {
             $command = Get-Command 7z.exe -ErrorAction SilentlyContinue
             if ($command) { $sevenZip = $command.Source }
         }
-        if (-not $sevenZip) { throw '7z.exe was not found. Install 7-Zip or add it to PATH.' }
+        if (-not $sevenZip) {
+            throw @'
+7z.exe was not found. Updating from a Release requires 7-Zip.
+No asset has been downloaded, no staging directory has been created, and the project has not been modified.
+Install with: winget install --id 7zip.7zip -e
+If winget is unavailable, download 7-Zip from https://www.7-zip.org/download.html .
+After installing, rerun the same command.
+Alternatively, if you have a zhanlu clone, run .\update-zhanlu.ps1 -Local from that clone (add -TargetPath <project> if needed).
+-Local needs no 7-Zip or network access; it applies that clone's version.
+'@
+        }
         $candidate = Join-Path $tempRoot ('zhanlu-' + [guid]::NewGuid().ToString('N'))
         # Do not adopt or clean a pre-existing directory, even on a GUID collision.
         New-Item -ItemType Directory -Path $candidate -ErrorAction Stop | Out-Null

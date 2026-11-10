@@ -10,9 +10,11 @@
 
 - Windows 與 Windows PowerShell 5.1 以上；五支腳本都以 `powershell.exe` 執行。
 - `git`：從 GitHub 取得模組需要；安裝器把整個模組排除在目標專案版控之外時同樣需要它在 PATH 上。沒有 `git` 時安裝仍會完成，但會改為印出需要手動加入的忽略項目。
-- 7-Zip：Release 更新、解壓套件與重新打包 (`pack.ps1`) 都需要 `7z.exe` 在 PATH 或安裝於預設路徑。
+- 7-Zip：從 Release 更新、解壓套件與重新打包 (`pack.ps1`) 都需要 `7z.exe` 在 PATH 或安裝於預設路徑。`update-zhanlu.ps1 -WhatIf`、`-Local` 與 `setup-zhanlu.ps1` 本身不需要 7-Zip。
 - 目標專案建議已在 Git 版控下。
 - 安裝完成後若 VSCode 已經開著目標專案，請重新載入視窗，工具才會重新掃描規則與 skill。
+
+可用 `winget install --id 7zip.7zip -e` 安裝 7-Zip；沒有 winget 時請至 [7-Zip 官方下載頁](https://www.7-zip.org/download.html)。安裝後重新執行原指令。已有 zhanlu clone 時，也可從該 clone 執行 `.\update-zhanlu.ps1 -Local`（必要時加 `-TargetPath <專案>`），不連網並套用該 clone 的版本，不需要 7-Zip。
 
 ## 取得模組的三種方式
 
@@ -261,6 +263,8 @@ LA log 要用**協定解碼後的 CSV**，一列一筆 transaction；raw sample 
 
 更新器顯示目前版本 → 目標版本、來源、Release URL 與 asset SHA-256。asset 必須恰好名為 `zhanlu-vX.Y.Z.7z`，並提供 `sha256:` digest；下載後先比對雜湊、執行 `7z t`、檢查項目路徑與連結，再解壓及核對套件版本與 `kit-source` 身分，最後執行套件內的 `setup-zhanlu.ps1 -Update`。任何檢查失敗即停止，暫存目錄在結束時清理。
 
+**從 Release 更新需要 7-Zip。** 找不到 `7z.exe` 時會在下載 asset、建立暫存與修改專案之前停止。請執行 `winget install --id 7zip.7zip -e`，或從 [7-Zip 官方下載頁](https://www.7-zip.org/download.html) 安裝後重新執行同一指令。`-WhatIf`、`-Local` 與 `setup-zhanlu.ps1` 本身不需要 7-Zip；已有 zhanlu clone 時，可從該 clone 執行 `.\update-zhanlu.ps1 -Local`（必要時加 `-TargetPath <專案>`），不連網並套用該 clone 的版本。
+
 | 選項 | 用途 |
 |---|---|
 | `-Version vX.Y.Z` | 指定正式 Release tag |
@@ -429,7 +433,7 @@ AI 不得猜測 pin、polarity、register value、timing、reset sequence、powe
 | `git was not found` 警告 | 安裝 git 或加入 PATH；否則需手動把訊息列出的項目加進目標的 `.git/info/exclude` |
 | 工作專案的 `.agents/` 整個不見了 | 極可能是跑過 `git clean -x`；從你自己的備份還原，模組本體可以重裝但工作歷史不行 |
 | `still contains template token: __PROJECT_ID__` | 專案層三份文件仍有模組範本佔位值，請填入實際內容；其他合法的 `__...__` 程式碼識別字不屬於範本 token |
-| `7z.exe was not found` | 安裝 7-Zip，或把 `7z.exe` 加入 PATH |
+| `7z.exe was not found` | 執行 `winget install --id 7zip.7zip -e`，或至 [官方下載頁](https://www.7-zip.org/download.html) 安裝後重跑；已有 zhanlu clone 時可從該 clone 執行 `.\update-zhanlu.ps1 -Local` 離線套用其版本 |
 | `.agents/` 被 `.backup-*` 佔滿 | 每次 `-Update` 都會留一份，不會自動清；跑 `clean-backups.ps1` 刪除，或 `-KeepLatest 1` 只留最新一份 |
 | 升級後專案事實不見了 | `-Update` 不會寫入作用中三份文件；若內容確實變了，代表有人手動覆蓋，請從版控還原 |
 

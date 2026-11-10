@@ -46,6 +46,14 @@
 | KIT-038 | 功能開發 | 外部工具 | context-index 選用〈外部工具〉`TOOL-xx` 與量測紀錄的工具版本 | KIT-037 | 完成 | 範本與兩技能不點名工具；預設使用者層並保留鎖版例外；授權仍依 AGENTS.md；三方審查無異議；母版驗證與 regression 通過 |
 | KIT-039 | 文件／封裝 | 發布 | 將已驗證的 v4.11.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-038 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-040 | 功能開發／Bug fix | 更新工具 | `update-zhanlu.ps1` 改為以 GitHub 正式 Release 更新，並修正在目標專案根目錄執行會對韌體 repo `git pull` | KIT-039 | 完成 | 不執行 Git 更新命令；digest、asset 名稱、版本與路徑檢查；離線 regression 通過；三方共識 |
+| KIT-041 | 功能開發 | 更新工具 | 無 7-Zip 環境採方案 A：明確停止訊息、安裝指引與 `-Local` 替代路線 | KIT-040 | 完成 | 訊息含安裝與替代路線；停止時未下載、未建暫存、專案零修改；`-WhatIf`／`-Local` 無 7z 可用；regression 通過 |
+
+## 已完成項目：KIT-041
+- 範圍：`update-zhanlu.ps1` 找不到 7z.exe 時的錯誤訊息改為說明未下載、未建暫存、未修改專案，並提供 `winget install --id 7zip.7zip -e`、官方下載頁與 `-Local` 替代路線；兩份 README 寫明從 Release 更新需要 7-Zip，`-WhatIf`、`-Local` 與 `setup-zhanlu.ps1` 不需要；regression 新增 14 項無 7-Zip 測試。Release 維持只發 `.7z`。
+- 決策：Agora 三方研究（討論串 20261110-100854）列出 A 維持 7z＋指引、B 雙格式、C 只發 zip、D 內建 tar；使用者選 A。查證更正：已發布的 v4.11.0 仍用 `git pull`，只認 `.7z` 的是未發布的 KIT-040，故改格式不影響已部署專案。
+- 分工：Codex 實作更新器、README 與測試；`.agents/README.md` 由 Claude 依建議套用。Codex 的無 7-Zip mock 因 PowerShell 動態範圍讀到更新器同名的空參數而失敗，Claude 改為子程序內的 `$global:` 變數修正。
+- 已完成靜態驗證：因工作區 `AGENTS.md` 有 Agora 寫入的未提交區塊（Agora 端修正中），驗證改在 HEAD 的乾淨暫存 worktree 套用相同四個檔案執行：`verify-zhanlu.ps1 -PackageSource` 通過、regression 191 項通過、`git diff --check` 通過；四個檔案與工作區逐位元組相同。`AGENTS.md` 未納入 commit。
+- 仍待驗證：真正未安裝 7-Zip 的 Windows 主機（本輪以子程序 mock 模擬）；winget 實際安裝；真實 GitHub 下載。
 
 ## 已完成項目：KIT-040
 - 範圍：`update-zhanlu.ps1` 改為依 `module.json` 新增的 `releaseRepository`（`richardjheng/zhanlu`）查詢 GitHub 正式 Release，下載 `zhanlu-vX.Y.Z.7z`、核對 API asset `digest`、檢查壓縮檔路徑與解壓後 reparse point、確認套件版本等於 tag 且為 kit-source，再以套件的 `setup-zhanlu.ps1 -Update` 升級並清除暫存；不執行 Git 更新命令。新增 `-Version`、`-Force`、`-AllowDowngrade`、`-Local`（`-NoPull` 別名）；`-WhatIf` 零寫入。`verify-zhanlu.ps1` 檢查 `releaseRepository` 格式；兩份 README 改寫升級段落與舊版首次遷移。

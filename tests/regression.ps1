@@ -105,18 +105,66 @@ function New-ReleaseMetadata([string]$Archive) {
 }
 
 function Invoke-ReleaseUpdate([string]$Script, $Metadata, [string]$Archive,
-    [string[]]$Options = @(), [string]$WorkingDirectory) {
+    [string[]]$Options = @(), [string]$WorkingDirectory, [switch]$WithoutSevenZip) {
     [System.IO.File]::WriteAllText($releaseJson, ($Metadata | ConvertTo-Json -Depth 20), $utf8)
     # Preserve a useful stack trace even when Windows localizes the native error text.
     $runner = Join-Path $scratch 'release-runner.ps1'
     [System.IO.File]::WriteAllText($runner, @'
 [CmdletBinding(SupportsShouldProcess)]
 param([string]$Entry, [string]$TargetPath, [string]$Version, [switch]$Force,
-    [switch]$AllowDowngrade, [switch]$RemoveStale, [string]$TestReleaseJson, [string]$TestAssetPath)
+    [switch]$AllowDowngrade, [switch]$RemoveStale, [switch]$Local,
+    [string]$TestReleaseJson, [string]$TestAssetPath, [switch]$WithoutSevenZip, [string]$ProbeLog)
 $entryArgs = @{} + $PSBoundParameters
 $entryArgs.Remove('Entry')
-try { & $Entry @entryArgs } catch { Write-Output $_.ScriptStackTrace; throw }
+$entryArgs.Remove('WithoutSevenZip')
+$entryArgs.Remove('ProbeLog')
+if ($WithoutSevenZip) {
+    # Child-process mocks only: leave the real PATH and installed tools untouched.
+    # Exercise the production API/download branches, serving metadata locally and
+    # recording any download attempt before failing closed without network access.
+    $entryArgs.Remove('TestReleaseJson')
+    $entryArgs.Remove('TestAssetPath')
+    # The updater declares its own (now empty) $TestReleaseJson; PowerShell's dynamic
+    # scoping (and its own script scope) would win inside these mocks, so use globals;
+    # this runner is a dedicated child process.
+    $global:mockReleaseJson = $TestReleaseJson
+    $global:mockProbeLog = $ProbeLog
+    function Test-Path {
+        [CmdletBinding()]
+        param([string]$LiteralPath, [string]$PathType)
+        if ($LiteralPath -in @('C:\Program Files\7-Zip\7z.exe', 'C:\Program Files (x86)\7-Zip\7z.exe')) {
+            Add-Content -LiteralPath $global:mockProbeLog -Value "7z-path:$LiteralPath" -WhatIf:$false
+            return $false
+        }
+        Microsoft.PowerShell.Management\Test-Path @PSBoundParameters
+    }
+    function Get-Command {
+        [CmdletBinding()]
+        param([string]$Name)
+        if ($Name -eq '7z.exe') {
+            Add-Content -LiteralPath $global:mockProbeLog -Value '7z-command' -WhatIf:$false
+            return $null
+        }
+        Microsoft.PowerShell.Core\Get-Command @PSBoundParameters
+    }
+    function Invoke-RestMethod {
+        [CmdletBinding()]
+        param([string]$Uri, [hashtable]$Headers, [switch]$UseBasicParsing)
+        Add-Content -LiteralPath $global:mockProbeLog -Value 'metadata' -WhatIf:$false
+        Get-Content -LiteralPath $global:mockReleaseJson -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    function Invoke-WebRequest {
+        [CmdletBinding()]
+        param([string]$Uri, [hashtable]$Headers, [switch]$UseBasicParsing, [string]$OutFile)
+        Add-Content -LiteralPath $global:mockProbeLog -Value 'download' -WhatIf:$false
+        throw 'Unexpected asset download in no-7-Zip regression.'
+    }
+}
+try { & $Entry @entryArgs } catch { Write-Output $_.Exception.Message; Write-Output $_.ScriptStackTrace; throw }
 '@, $utf8)
+    $runnerArguments = @('-Entry', $Script, '-TestReleaseJson', $releaseJson, '-TestAssetPath', $Archive) + $Options
+    $probeLog = Join-Path $scratch ('no-sevenzip-' + [guid]::NewGuid().ToString('N') + '.log')
+    if ($WithoutSevenZip) { $runnerArguments += @('-WithoutSevenZip', '-ProbeLog', $probeLog) }
     # A parent-directory timestamp also sees PowerShell's own transient policy
     # probes. Watch actual updater staging creations, including create-then-delete.
     $watcher = New-Object System.IO.FileSystemWatcher($releaseTemp, 'zhanlu-*')
@@ -125,10 +173,13 @@ try { & $Entry @entryArgs } catch { Write-Output $_.ScriptStackTrace; throw }
     Register-ObjectEvent -InputObject $watcher -EventName Created -SourceIdentifier $eventId | Out-Null
     try {
         $watcher.EnableRaisingEvents = $true
-        $result = Invoke-Child $runner (@('-Entry', $Script, '-TestReleaseJson', $releaseJson, '-TestAssetPath', $Archive) + $Options) `
+        $result = Invoke-Child $runner $runnerArguments `
             $WorkingDirectory @{ TEMP = $releaseTemp; TMP = $releaseTemp; GIT_TRACE = $gitTrace }
         $watcher.EnableRaisingEvents = $false
         $result['CreatedStages'] = @(Get-Event -SourceIdentifier $eventId -ErrorAction SilentlyContinue).Count
+        if ($WithoutSevenZip) {
+            $result['ProbeCalls'] = @(if (Test-Path -LiteralPath $probeLog) { Get-Content -LiteralPath $probeLog })
+        }
         return $result
     } finally {
         Unregister-Event -SourceIdentifier $eventId
@@ -493,6 +544,43 @@ try { Get-Location | Out-String } catch { $Host.UI.WriteLine($_.Exception.ToStri
     Assert-Ignored $releaseTarget 'tools/kit clone/update-zhanlu.ps1'
     $trace = [System.IO.File]::ReadAllText($gitTrace)
     Assert-Case ($trace -match 'built-in: git' -and $trace -notmatch '(?im)built-in: git .*\b(pull|fetch|checkout)\b') 'Git trace records installer probes but no update command in either repository'
+
+    # Both hard-coded locations and PATH lookup fail only in the child runner.
+    Set-InstalledVersion $releaseTarget '0.0.1'
+    $beforeMissingSevenZip = @(Snapshot-Files $releaseTarget)
+    $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata $goodArchive -WorkingDirectory $releaseTarget -WithoutSevenZip
+    Assert-Case ($result.Exit -ne 0 -and $result.Output.Contains('7z.exe was not found')) 'Missing 7-Zip rejects Release update with nonzero exit'
+    Assert-Case ($result.ProbeCalls -contains '7z-path:C:\Program Files\7-Zip\7z.exe' -and
+        $result.ProbeCalls -contains '7z-path:C:\Program Files (x86)\7-Zip\7z.exe' -and
+        $result.ProbeCalls -contains '7z-command') 'Missing 7-Zip covers both default locations and command lookup'
+    Assert-Case ($result.Output.Contains('winget install --id 7zip.7zip -e') -and
+        $result.Output.Contains('https://www.7-zip.org/download.html') -and
+        $result.Output.Contains('rerun the same command')) 'Missing 7-Zip provides installation and retry guidance'
+    Assert-Case ($result.Output.Contains('.\update-zhanlu.ps1 -Local') -and
+        $result.Output.Contains("clone's version") -and $result.Output.Contains('no 7-Zip or network access')) 'Missing 7-Zip provides offline clone alternative'
+    Assert-Case ($result.Output.Contains('No asset has been downloaded') -and
+        $result.Output.Contains('no staging directory has been created') -and
+        $result.Output.Contains('project has not been modified')) 'Missing 7-Zip explains unchanged state'
+    Assert-Case (-not (Compare-Object $beforeMissingSevenZip @(Snapshot-Files $releaseTarget))) 'Missing 7-Zip leaves target and clone files unchanged'
+    Assert-Case ($result.CreatedStages -eq 0 -and
+        @(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) 'Missing 7-Zip creates no staging directory'
+    Assert-Case ($result.ProbeCalls -contains 'metadata' -and $result.ProbeCalls -notcontains 'download') 'Missing 7-Zip reads metadata but never attempts asset download'
+
+    $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata $goodArchive @('-WhatIf') $releaseTarget -WithoutSevenZip
+    Assert-Case ($result.Exit -eq 0 -and $result.ProbeCalls -contains 'metadata' -and
+        @($result.ProbeCalls | Where-Object { $_ -like '7z-*' -or $_ -eq 'download' }).Count -eq 0) 'WhatIf succeeds without discovering 7-Zip or downloading'
+    Assert-Case (-not (Compare-Object $beforeMissingSevenZip @(Snapshot-Files $releaseTarget)) -and
+        $result.CreatedStages -eq 0 -and
+        @(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) 'WhatIf without 7-Zip changes no target or staging files'
+
+    $result = Invoke-ReleaseUpdate $cloneUpdater $goodMetadata $goodArchive @('-Local') $releaseClone -WithoutSevenZip
+    Assert-Case ($result.Exit -eq 0 -and (Read-Manifest $releaseTarget).version -eq $manifest.version -and
+        $result.Output -match 'N/A \(local kit') 'Local without 7-Zip applies the clone version through the real installer'
+    Assert-Case ($result.ProbeCalls.Count -eq 0 -and $result.CreatedStages -eq 0 -and
+        @(Get-ChildItem -LiteralPath $releaseTemp -Force).Count -eq 0) 'Local without 7-Zip performs no tool lookup, network calls or staging'
+    Assert-Case (-not (Compare-Object $cloneBeforeRelease @(Snapshot-Files $releaseClone))) 'Local without 7-Zip leaves source clone unchanged'
+    $activeAfterMissingSevenZip = @($activeFiles | ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $releaseTarget $_)).Hash })
+    Assert-Case (-not (Compare-Object $activeBeforeRelease $activeAfterMissingSevenZip)) 'Local without 7-Zip preserves active project documents'
 
     $sameBefore = @(Snapshot-Files $releaseTarget)
     $result = Invoke-ReleaseUpdate $installedUpdater $goodMetadata (Join-Path $scratch 'does-not-exist.7z')
