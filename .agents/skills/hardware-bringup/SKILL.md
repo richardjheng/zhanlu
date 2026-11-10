@@ -20,7 +20,7 @@ description: 新晶片、新板或新控制器韌體 bring-up。適用從權威�
 - 記錄韌體版本、板號、供電與量測條件。
 - 將 console、register dump、電壓、時序與波形對應到完成條件。
 - Build 或 UART 輸出正常不等於整板功能驗證完成。
-- 修改初始化或序列時，影響與變更範圍依 `../../templates/impact-analysis.md` 記錄，步驟表、延遲與等待條件逐項比對。
+- 修改初始化或序列時，影響與變更範圍依 `../../templates/impact-analysis.md` 記錄，步驟表、延遲與等待條件逐項比對；有界等待與 watchdog 的契約見 `../architecture-design/patterns.md`。
 
 
 ## 量測證據格式

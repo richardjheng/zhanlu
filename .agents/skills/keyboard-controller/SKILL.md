@@ -22,6 +22,7 @@ description: Keyboard Controller 韌體領域知識。適用 matrix scan、debou
 - **ISR→main**：KSI interrupt／wake 只觸發掃描排程，實際掃描、debounce 與 report 在 main 或 thread；確認 sleep 狀態下的路徑。
 - **協定契約**：scan code、HID usage、ACPI Q-event 與 vendor command 編號由 host 端解讀，與 BIOS／驅動共用。
 - **條件編譯**：KSO 擴充、SKU 與板級設定決定實際掃描腳位；各 SKU 需各自展開確認。
+- **模式契約**：KSI 中斷延後掃描見第 1 組，debounce 見第 2 組，matrix／hotkey 表見第 5 組（`../architecture-design/patterns.md`）。
 
 ## 驗證
 - 使用 matrix 測試、長按／多鍵／快速輸入、protocol trace、sleep wake 與不同 SKU 回歸。

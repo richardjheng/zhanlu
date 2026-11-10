@@ -21,6 +21,7 @@ description: LED／RGB／背光控制器韌體領域知識。適用 PWM、consta
 - **共享資料（多方寫入）**：power source 事件、power state、host／panel 命令與 pattern 狀態機都可能寫同一組 PWM duty 或模式旗標；列出所有寫入者與先後順序，確認模式切換時誰負責恢復輸出。
 - **ISR→main**：呼吸或 pattern 狀態機可能同時由 timer ISR 與 main service 推進；確認呼叫來源、頻率與共享狀態保護。
 - **共享資料**：保存的設定值（例如百分比）與硬體暫存器原始值（DCR）單位不同；停止 pattern 時不會自動回寫設定值。
+- **模式契約**：PWM 多寫入者與 override 恢復見第 4 組，pattern 狀態機跨 ISR／main 見第 1 組（`../architecture-design/patterns.md`）。
 
 ## 驗證
 - 除功能目視外，量測頻率、duty、電流、功耗、溫升與長時間 pattern 穩定性。

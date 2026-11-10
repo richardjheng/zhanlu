@@ -240,6 +240,8 @@ LA log 要用**協定解碼後的 CSV**，一列一筆 transaction；raw sample 
 
 常見組合：多個既有專案要收斂時，先用 `architecture-design` 決定共用基底與差異層，再用 `code-integration` 執行搬移。
 
+`architecture-design/patterns.md` 整理 MCU 韌體常見模式（跨 context 傳遞、狀態機與有界等待、共享資料與硬體存取、輸出仲裁與恢復、靜態分派）的契約，供審查、移植、Bug 修正與整合時辨識專案既有模式；它不是重構或新增機制的依據。
+
 審查技能刻意命名為 `firmware-code-review` 而不是 `code-review`，避免與 Claude Code 內建的同名 skill 互相遮蔽。
 
 ## 升級既有專案

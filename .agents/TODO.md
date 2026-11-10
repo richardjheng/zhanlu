@@ -41,6 +41,16 @@
 | KIT-034 | 功能開發 | 影響分析 | 補強最小變更原則，並加入「要改」依據必填與交付前自我檢查 | KIT-028 | 完成 | 範本規則與自我檢查一致；母版驗證、regression 與封裝通過；回放效果列為後續觀察，不作為本項門檻 |
 | KIT-035 | 文件／封裝 | 發布 | 將已驗證的 v4.9.0 推送至 `richardjheng/zhanlu` 並發布 GitHub Release | KIT-032 | 完成 | main、annotated tag 與 Release 可查，下載回驗 asset 的大小、SHA-256 與 7z 完整性均通過 |
 | KIT-033 | 功能開發 | 安裝工具 | `setup-zhanlu.ps1 -Uninstall` 解除安裝 | KIT-027 | 完成 | WhatIf 零寫入；只移除可確認歸屬檔案；保留作用中文件與證據及其忽略保護；回放 ite-tools 誤裝情境 |
+| KIT-036 | 功能開發 | 模式契約 | MCU 韌體常見模式契約參考，供任務與領域技能辨識既有模式 | KIT-034 | 完成 | 參考檔列入白名單；任務與領域技能有讀取條件；檔頭明定非修改依據；三方審查無異議；母版驗證、regression 與封裝通過 |
+
+## 已完成項目：KIT-036
+- 範圍：新增 `.agents/skills/architecture-design/patterns.md`，整理 C/C++ MCU 韌體五組模式契約（跨 context 傳遞、狀態機與有界等待、共享資料與硬體存取、輸出仲裁與恢復、靜態分派與編譯期約束）及 C++ 條件小節；列入 `module.json` 的 `portableFiles`。
+- 定位：辨識專案既有模式並維持契約，不是修改或重構依據；違反契約但非需求或根因者列入影響分析第 6 節；不因本檔引入專案沒有的機制。
+- 接線：architecture-design、firmware-code-review、firmware-porting、bug-fix、code-integration、hardware-bringup 各一句讀取條件；ec、pd、lighting、keyboard 領域技能各一行指向對應組別；README 技能段補說明。
+- 決策（Agora 三方討論，`.agora/threads/20261110-072052-zhanlu-值得加入的-C-C-MCU-韌體-design-pattern/`）：採獨立參考檔而非內嵌技能（`.claude/skills/` 只是載入器，不需雙份）；C++ 保留條件小節，exception／RTTI／heap 依 `project.md`，不收 CRTP；debounce 與 hysteresis 分列；watchdog 以受監控工作的進度證據為條件；有界等待限需有界完成的操作；memory pool 區分儲存區建立與執行期借還。
+- Codex 審查修正：轉移入口不限於表內；時段排程以實際期限判定、不強制拆分；RW／W1C 混合 register 依 SPEC 組合寫入值；區域 buffer 在確認對方完成後才安全；C++ 靜態初始化時機改為標準語意；SPSC index 原子性可由同步機制保護；常見錯誤加上適用條件。
+- 已完成靜態驗證：`verify-zhanlu.ps1 -PackageSource` 通過（portableFiles 44）；`tests/regression.ps1` 92 項通過；`git diff --check` 通過；`pack.ps1 -OutDir` 至暫存目錄，44 個檔案且含 `patterns.md`。未覆寫 `dist/` 中已發布的 v4.9.0 套件。
+- 仍待驗證：實際專案中 AI 依本檔審查或修改的效果；版本號未升，待下次發布處理。
 
 ## 已完成項目：KIT-035
 - 範圍：推送 `main` 與 annotated tag `v4.9.0` 至 remote `richardjheng`（`richardjheng/zhanlu`），建立 Release 並上傳 `dist/zhanlu-v4.9.0.7z`；不改程式碼。`origin`（ITE-Richard/zhanlu）未推送。

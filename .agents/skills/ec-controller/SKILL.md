@@ -22,6 +22,7 @@ description: Embedded Controller 韌體領域知識。適用 power state、host 
 - **共享資料或記憶體別名**：EC RAM、ACPI EC space、H2RAM 欄位常以巨集定義位址；同一位址的 byte／word 別名、高低位元組順序與 SMBus 寫回寬度必須逐一對齊。
 - **條件編譯**：平台或板級標頭、`CONFIG_*` 衍生開關與 `#ifndef` 預設值決定實際路徑；每個平台需各自展開確認。
 - **協定或暫存器契約**：GPIO 表的 ALT／INPUT 設定、ACPI Q-event 編號、host command 欄位，與外部 BIOS／工具共用。
+- **模式契約**：power sequence 步驟表與 service 排程見第 2 組，ACPI EC space／H2RAM 交握見第 3 組，fan 與 thermal 輸出仲裁見第 4 組（`../architecture-design/patterns.md`）。
 
 ## 驗證
 - 除 build 外，依功能提供 host 行為、EC log、GPIO／power waveform、battery／charger trace 或 fan／thermal 量測。

@@ -12,7 +12,7 @@ description: 整合 upstream、vendor SDK、patch、branch 或另一 repository 
 
 ## 方法
 1. 建立來源檔案／介面到目標落點的對照，不以同名函式認定行為相同。
-2. 比較 public API、資料結構、設定、初始化順序、執行 context 與錯誤處理。
+2. 比較 public API、資料結構、設定、初始化順序、執行 context 與錯誤處理；兩邊採用的模式依 `../architecture-design/patterns.md` 對照契約。
 3. 將衝突分類為機械衝突、架構差異、產品差異或行為衝突，再選擇保留、調整或拒絕。
 4. 保持 patch 可追溯；必要時記錄來源 commit 與未採用部分的理由。
 5. 先驗證局部介面，再執行整體 build 與受影響回歸。

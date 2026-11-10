@@ -124,6 +124,7 @@
     ".agents/skills/firmware-porting/SKILL.md",
     ".agents/skills/hardware-bringup/SKILL.md",
     ".agents/skills/architecture-design/SKILL.md",
+    ".agents/skills/architecture-design/patterns.md",
     ".agents/skills/firmware-code-review/SKILL.md",
     ".agents/skills/ec-controller/SKILL.md",
     ".agents/skills/pd-controller/SKILL.md",
