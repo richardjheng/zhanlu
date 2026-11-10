@@ -1,8 +1,8 @@
 {
   "name": "zhanlu",
-  "version": "4.9.0",
+  "version": "4.10.0",
   "coreVersion": "ZHANLU-CORE-v4",
-  "archiveName": "zhanlu-v4.9.0.7z",
+  "archiveName": "zhanlu-v4.10.0.7z",
   "legacyMarkerNames": [
     "embedded-firmware-ai-collaboration-kit"
   ],
